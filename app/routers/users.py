@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from .. import crud, models, schemas
 from ..database import get_db
@@ -75,6 +75,10 @@ def add_learning_pair(
 
     existing = (
         db.query(models.UserLearningPair)
+        .options(
+            joinedload(models.UserLearningPair.source_language),
+            joinedload(models.UserLearningPair.target_language),
+        )
         .filter(
             models.UserLearningPair.user_id == current_user.id,
             models.UserLearningPair.source_language_id == payload.source_language_id,
@@ -129,3 +133,13 @@ def update_my_goals(
     db.commit()
     db.refresh(user)  
     return user
+
+@router.get("/me/default-learning-pair", response_model=schemas.UserLearningPairOut)
+def get_default_pair(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    pair = crud.get_default_learning_pair(db, current_user.id)
+    if not pair:
+        raise HTTPException(status_code=404, detail="Default learning pair not set")
+    return pair

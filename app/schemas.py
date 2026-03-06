@@ -35,6 +35,7 @@ class CardOut(CardBase):
     id: int
     deck_id: int
     created_at: datetime
+    status: str = 'new'
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -96,6 +97,9 @@ class LanguageUpdate(BaseModel):
 
 class LanguageOut(LanguageBase):
     id: int
+    name: str
+    code: str
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -115,6 +119,8 @@ class UserLearningPairOut(BaseModel):
     source_language_id: int
     target_language_id: int
     is_default: bool
+    source_language: LanguageOut
+    target_language: LanguageOut
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -129,9 +135,12 @@ class DeckBase(BaseModel):
     deck_type: str = "users"  # "main" | "users" | "library"
 
 
-class DeckCreate(DeckBase):
-    pass
-
+class DeckCreate(BaseModel):
+    name: str
+    deck_type: str = "users"  # manual create supports only "users"
+    pair_id: int | None = None
+    source_language_id: int | None = None
+    target_language_id: int | None = None
 
 class DeckOut(DeckBase):
     id: int

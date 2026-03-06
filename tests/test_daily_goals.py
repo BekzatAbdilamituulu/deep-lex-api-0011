@@ -2,8 +2,8 @@ from tests.conftest import (
     admin_create_language,
     auth_headers,
     create_user_and_token,
-    set_default_languages,
 )
+from tests.helpers import set_default_pair
 
 
 def test_update_my_goals(client):
@@ -23,6 +23,7 @@ def test_update_my_goals(client):
 
 def test_progress_summary_includes_goal_progress(client):
     user, token = create_user_and_token(client, "goals_user_2")
+    _, admin_token = create_user_and_token(client, "admin")
     h = auth_headers(token)
 
     # set goals
@@ -32,9 +33,15 @@ def test_progress_summary_includes_goal_progress(client):
         json={"daily_card_target": 20, "daily_new_target": 7},
     )
     assert r.status_code == 200, r.text
-
+    en_id = admin_create_language(client, admin_token, "English", "en")
+    ru_id = admin_create_language(client, admin_token, "Russian", "ru")
+    pair_id = set_default_pair(client, token, en_id, ru_id)
     # progress summary should include goal fields
-    r = client.get("/api/v1/progress/summary", headers=h)
+    r = client.get(
+        "/api/v1/progress/summary",
+        params={"pair_id": pair_id},
+        headers=auth_headers(token),
+    )
     assert r.status_code == 200, r.text
     data = r.json()
 

@@ -6,11 +6,12 @@ from typing import List, Optional
 
 from sqlalchemy import and_, func, or_
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.utils.time import bishkek_day_bounds, bishkek_today
 
-from . import models
+
+from . import models, schemas
 
 # ----------------- Permissions -----------------
 
@@ -32,6 +33,31 @@ def create_user(db: Session, username: str, hashed_password: str) -> models.User
     db.refresh(user)
     return user
 
+def get_user_learning_pair(db: Session, user_id: int, pair_id: int):
+    return (
+        db.query(models.UserLearningPair)
+        .filter(
+            models.UserLearningPair.user_id == user_id,
+            models.UserLearningPair.id == pair_id,
+        )
+        .first()
+    )
+
+def get_user_learning_pair_by_langs(
+    db: Session,
+    user_id: int,
+    source_language_id: int,
+    target_language_id: int,
+):
+    return (
+        db.query(models.UserLearningPair)
+        .filter(
+            models.UserLearningPair.user_id == user_id,
+            models.UserLearningPair.source_language_id == source_language_id,
+            models.UserLearningPair.target_language_id == target_language_id,
+        )
+        .first()
+    )
 
 # ---------default users language pair
 
@@ -39,6 +65,10 @@ def create_user(db: Session, username: str, hashed_password: str) -> models.User
 def list_learning_pairs(db: Session, user_id: int):
     return (
         db.query(models.UserLearningPair)
+        .options(
+            joinedload(models.UserLearningPair.source_language),
+            joinedload(models.UserLearningPair.target_language),
+        )
         .filter(models.UserLearningPair.user_id == user_id)
         .order_by(models.UserLearningPair.is_default.desc(), models.UserLearningPair.id.asc())
         .all()
@@ -56,8 +86,15 @@ def create_learning_pair(
     )
     db.add(pair)
     db.commit()
-    db.refresh(pair)
-    return pair
+    return (
+        db.query(models.UserLearningPair)
+        .options(
+            joinedload(models.UserLearningPair.source_language),
+            joinedload(models.UserLearningPair.target_language),
+        )
+        .filter(models.UserLearningPair.id == pair.id)
+        .first()
+    )
 
 
 def get_or_create_main_deck_for_pair(
@@ -104,6 +141,10 @@ def get_or_create_main_deck_for_pair(
 def set_default_learning_pair(db: Session, user_id: int, pair_id: int):
     pair = (
         db.query(models.UserLearningPair)
+        .options(
+            joinedload(models.UserLearningPair.source_language),
+            joinedload(models.UserLearningPair.target_language),
+        )
         .filter(
             models.UserLearningPair.user_id == user_id,
             models.UserLearningPair.id == pair_id,
@@ -143,8 +184,15 @@ def set_default_learning_pair(db: Session, user_id: int, pair_id: int):
     )
 
     db.commit()
-    db.refresh(pair)
-    return pair
+    return (
+        db.query(models.UserLearningPair)
+        .options(
+            joinedload(models.UserLearningPair.source_language),
+            joinedload(models.UserLearningPair.target_language),
+        )
+        .filter(models.UserLearningPair.id == pair.id)
+        .first()
+    )
 
 
 # ----------------- Languages (global/admin) -----------------
@@ -413,17 +461,35 @@ def get_user_decks(
     user_id: int,
     limit: int,
     offset: int,
+    pair_id: int | None = None,
 ):
     base_q = (
         db.query(models.Deck)
         .join(models.DeckAccess, models.DeckAccess.deck_id == models.Deck.id)
         .filter(models.DeckAccess.user_id == user_id)
-        .order_by(models.Deck.id.desc())
     )
+
+    if pair_id is not None:
+        pair = (
+            db.query(models.UserLearningPair)
+            .filter(
+                models.UserLearningPair.user_id == user_id,
+                models.UserLearningPair.id == pair_id,
+            )
+            .first()
+        )
+        if not pair:
+            raise ValueError("Learning pair not found")
+
+        base_q = base_q.filter(
+            models.Deck.source_language_id == pair.source_language_id,
+            models.Deck.target_language_id == pair.target_language_id,
+        )
+
+    base_q = base_q.order_by(models.Deck.id.desc())
 
     total = base_q.count()
     items = base_q.offset(offset).limit(limit).all()
-
     return items, total
 
 
@@ -603,11 +669,37 @@ def list_deck_cards(
     require_deck_access(db, user_id, deck_id)
 
     base_q = (
-        db.query(models.Card).filter(models.Card.deck_id == deck_id).order_by(models.Card.id.asc())
+        db.query(models.Card)
+        .filter(models.Card.deck_id == deck_id)
+        .order_by(models.Card.id.asc())
     )
 
     total = base_q.count()
-    items = base_q.offset(offset).limit(limit).all()
+    cards = base_q.offset(offset).limit(limit).all()
+
+    if not cards:
+        return [], total
+
+    card_ids = [c.id for c in cards]
+
+    progress_rows = (
+        db.query(models.UserCardProgress)
+        .filter(
+            models.UserCardProgress.user_id == user_id,
+            models.UserCardProgress.card_id.in_(card_ids),
+        )
+        .all()
+    )
+    progress_by_card_id = {p.card_id: p for p in progress_rows}
+
+    items = []
+    for card in cards:
+        progress = progress_by_card_id.get(card.id)
+        status = progress.status if progress and progress.status else "new"
+
+        item = schemas.CardOut.model_validate(card).model_dump()
+        item["status"] = status
+        items.append(item)
 
     return items, total
 
@@ -640,11 +732,73 @@ def create_user_card_progress(db: Session, user_id: int, card_id: int) -> models
     db.refresh(rec)
     return rec
 
+def reset_card_progress(
+    db: Session,
+    deck_id: int,
+    card_id: int,
+    user_id: int,
+):
+    deck = (
+        db.query(models.Deck)
+        .join(models.DeckAccess, models.DeckAccess.deck_id == models.Deck.id)
+        .filter(
+            models.Deck.id == deck_id,
+            models.DeckAccess.user_id == user_id,
+        )
+        .first()
+    )
+    if not deck:
+        raise PermissionError("No permission to access deck")
+
+    card = (
+        db.query(models.Card)
+        .filter(
+            models.Card.id == card_id,
+            models.Card.deck_id == deck_id,
+        )
+        .first()
+    )
+    if not card:
+        raise LookupError("Card not found")
+
+    progress = (
+        db.query(models.UserCardProgress)
+        .filter(
+            models.UserCardProgress.user_id == user_id,
+            models.UserCardProgress.card_id == card_id,
+        )
+        .first()
+    )
+
+    if progress:
+        progress.status = "new"
+        progress.due_at = None
+        progress.last_reviewed_at = None
+
+        if hasattr(progress, "interval_days"):
+            progress.interval_days = 0
+        if hasattr(progress, "ease_factor"):
+            progress.ease_factor = 2.5
+        if hasattr(progress, "lapses"):
+            progress.lapses = 0
+        if hasattr(progress, "reps"):
+            progress.reps = 0
+
+        db.add(progress)
+        db.commit()
+        db.refresh(progress)
+
+    return card
+
 
 # ----------------- Study selection queries -----------------
 def get_default_learning_pair(db: Session, user_id: int) -> models.UserLearningPair | None:
     return (
         db.query(models.UserLearningPair)
+        .options(
+            joinedload(models.UserLearningPair.source_language),
+            joinedload(models.UserLearningPair.target_language),
+        )
         .filter(
             models.UserLearningPair.user_id == user_id,
             models.UserLearningPair.is_default.is_(True),
@@ -748,13 +902,17 @@ def utc_day_bounds(now: datetime):
 
 
 def count_cards_created_on_day(
-    db: Session, user_id: int, d: date, deck_id: int | None = None
+    db: Session,
+    user_id: int,
+    d: date,
+    deck_id: int | None = None,
+    pair_id: int | None = None,
 ) -> int:
     start, end = bishkek_day_bounds(d)
 
     q = (
         db.query(models.Card)
-        .join(models.Deck, models.Deck.id == models.Card.deck_id)  # join Deck for deck_type
+        .join(models.Deck, models.Deck.id == models.Card.deck_id)
         .join(models.DeckAccess, models.DeckAccess.deck_id == models.Card.deck_id)
         .filter(
             models.DeckAccess.user_id == user_id,
@@ -764,11 +922,23 @@ def count_cards_created_on_day(
     )
 
     if deck_id is not None:
-        q = q.filter(models.Card.deck_id == deck_id, models.Deck.deck_type == "main")
-    else:
-        # optional: if you ever call without deck_id, you might still want only main
-        # q = q.filter(models.Deck.deck_type == "main")
-        pass
+        q = q.filter(models.Card.deck_id == deck_id)
+    elif pair_id is not None:
+        pair = (
+            db.query(models.UserLearningPair)
+            .filter(
+                models.UserLearningPair.user_id == user_id,
+                models.UserLearningPair.id == pair_id,
+            )
+            .first()
+        )
+        if not pair:
+            return 0
+
+        q = q.filter(
+            models.Deck.source_language_id == pair.source_language_id,
+            models.Deck.target_language_id == pair.target_language_id,
+        )
 
     return q.count()
 
@@ -928,28 +1098,62 @@ def count_new_introduced_today(db: Session, user_id: int, deck_id: int) -> int:
     )
 
 
-def count_due_reviews(db: Session, user_id: int, deck_id: int) -> int:
+def count_due_reviews(
+    db: Session,
+    user_id: int,
+    deck_id: int | None = None,
+    pair_id: int | None = None,
+) -> int:
     now = datetime.utcnow()
 
-    return (
+    q = (
         db.query(models.UserCardProgress)
         .join(models.Card, models.Card.id == models.UserCardProgress.card_id)
+        .join(models.Deck, models.Deck.id == models.Card.deck_id)
+        .join(models.DeckAccess, models.DeckAccess.deck_id == models.Card.deck_id)
         .filter(
+            models.DeckAccess.user_id == user_id,
             models.UserCardProgress.user_id == user_id,
-            models.Card.deck_id == deck_id,
             models.UserCardProgress.status == "learning",
             models.UserCardProgress.due_at.isnot(None),
             models.UserCardProgress.due_at <= now,
         )
-        .count()
     )
 
+    if deck_id is not None:
+        q = q.filter(models.Card.deck_id == deck_id)
+    elif pair_id is not None:
+        pair = (
+            db.query(models.UserLearningPair)
+            .filter(
+                models.UserLearningPair.user_id == user_id,
+                models.UserLearningPair.id == pair_id,
+            )
+            .first()
+        )
+        if not pair:
+            return 0
 
-def count_new_available(db: Session, user_id: int, deck_id: int) -> int:
+        q = q.filter(
+            models.Deck.source_language_id == pair.source_language_id,
+            models.Deck.target_language_id == pair.target_language_id,
+        )
+
+    return q.count()
+
+
+def count_new_available(
+    db: Session,
+    user_id: int,
+    deck_id: int | None = None,
+    pair_id: int | None = None,
+) -> int:
     now = datetime.utcnow()
 
-    return (
+    q = (
         db.query(models.Card)
+        .join(models.Deck, models.Deck.id == models.Card.deck_id)
+        .join(models.DeckAccess, models.DeckAccess.deck_id == models.Card.deck_id)
         .outerjoin(
             models.UserCardProgress,
             and_(
@@ -958,7 +1162,7 @@ def count_new_available(db: Session, user_id: int, deck_id: int) -> int:
             ),
         )
         .filter(
-            models.Card.deck_id == deck_id,
+            models.DeckAccess.user_id == user_id,
             or_(
                 models.UserCardProgress.id.is_(None),
                 and_(
@@ -970,22 +1174,69 @@ def count_new_available(db: Session, user_id: int, deck_id: int) -> int:
                 ),
             ),
         )
-        .count()
     )
 
+    if deck_id is not None:
+        q = q.filter(models.Card.deck_id == deck_id)
+    elif pair_id is not None:
+        pair = (
+            db.query(models.UserLearningPair)
+            .filter(
+                models.UserLearningPair.user_id == user_id,
+                models.UserLearningPair.id == pair_id,
+            )
+            .first()
+        )
+        if not pair:
+            return 0
 
-def get_next_due_at(db: Session, user_id: int, deck_id: int):
-    return (
+        q = q.filter(
+            models.Deck.source_language_id == pair.source_language_id,
+            models.Deck.target_language_id == pair.target_language_id,
+        )
+
+    return q.count()
+
+
+def get_next_due_at(
+    db: Session,
+    user_id: int,
+    deck_id: int | None = None,
+    pair_id: int | None = None,
+):
+    q = (
         db.query(func.min(models.UserCardProgress.due_at))
         .join(models.Card, models.Card.id == models.UserCardProgress.card_id)
+        .join(models.Deck, models.Deck.id == models.Card.deck_id)
+        .join(models.DeckAccess, models.DeckAccess.deck_id == models.Card.deck_id)
         .filter(
+            models.DeckAccess.user_id == user_id,
             models.UserCardProgress.user_id == user_id,
-            models.Card.deck_id == deck_id,
             models.UserCardProgress.status == "learning",
             models.UserCardProgress.due_at.isnot(None),
         )
-        .scalar()
     )
+
+    if deck_id is not None:
+        q = q.filter(models.Card.deck_id == deck_id)
+    elif pair_id is not None:
+        pair = (
+            db.query(models.UserLearningPair)
+            .filter(
+                models.UserLearningPair.user_id == user_id,
+                models.UserLearningPair.id == pair_id,
+            )
+            .first()
+        )
+        if not pair:
+            return None
+
+        q = q.filter(
+            models.Deck.source_language_id == pair.source_language_id,
+            models.Deck.target_language_id == pair.target_language_id,
+        )
+
+    return q.scalar()
 
 
 # ----------------- Daily progress row -----------------
@@ -1061,36 +1312,86 @@ def get_daily_progress_for_day(
     )
 
 
-def count_total_cards(db: Session, user_id: int, deck_id: int | None = None) -> int:
+def count_total_cards(
+    db: Session,
+    user_id: int,
+    deck_id: int | None = None,
+    pair_id: int | None = None,
+) -> int:
     q = (
         db.query(models.Card)
+        .join(models.Deck, models.Deck.id == models.Card.deck_id)
         .join(models.DeckAccess, models.DeckAccess.deck_id == models.Card.deck_id)
         .filter(models.DeckAccess.user_id == user_id)
     )
+
     if deck_id is not None:
         q = q.filter(models.Card.deck_id == deck_id)
+    elif pair_id is not None:
+        pair = (
+            db.query(models.UserLearningPair)
+            .filter(
+                models.UserLearningPair.user_id == user_id,
+                models.UserLearningPair.id == pair_id,
+            )
+            .first()
+        )
+        if not pair:
+            return 0
+
+        q = q.filter(
+            models.Deck.source_language_id == pair.source_language_id,
+            models.Deck.target_language_id == pair.target_language_id,
+        )
+
     return q.count()
 
+def count_progress_statuses(
+    db: Session,
+    user_id: int,
+    deck_id: int | None = None,
+    pair_id: int | None = None,
+) -> dict:
+    pair = None
+    if deck_id is None and pair_id is not None:
+        pair = (
+            db.query(models.UserLearningPair)
+            .filter(
+                models.UserLearningPair.user_id == user_id,
+                models.UserLearningPair.id == pair_id,
+            )
+            .first()
+        )
+        if not pair:
+            return {"mastered": 0, "learning": 0, "new": 0}
 
-def count_progress_statuses(db: Session, user_id: int, deck_id: int | None = None) -> dict:
     # mastered + learning from progress rows
     q = (
         db.query(models.UserCardProgress.status, func.count(models.UserCardProgress.id))
         .join(models.Card, models.Card.id == models.UserCardProgress.card_id)
+        .join(models.Deck, models.Deck.id == models.Card.deck_id)
         .filter(models.UserCardProgress.user_id == user_id)
     )
+
     if deck_id is not None:
         q = q.filter(models.Card.deck_id == deck_id)
+    elif pair is not None:
+        q = q.filter(
+            models.Deck.source_language_id == pair.source_language_id,
+            models.Deck.target_language_id == pair.target_language_id,
+        )
 
     rows = q.group_by(models.UserCardProgress.status).all()
+
     counts = {"mastered": 0, "learning": 0, "new": 0}
     for status, c in rows:
         if status in counts:
             counts[status] = int(c)
 
-    # new cards also include cards without any progress row
+    # new cards = cards without any progress row
     q2 = (
         db.query(models.Card)
+        .join(models.Deck, models.Deck.id == models.Card.deck_id)
         .outerjoin(
             models.UserCardProgress,
             and_(
@@ -1104,8 +1405,14 @@ def count_progress_statuses(db: Session, user_id: int, deck_id: int | None = Non
             models.UserCardProgress.id.is_(None),
         )
     )
+
     if deck_id is not None:
         q2 = q2.filter(models.Card.deck_id == deck_id)
+    elif pair is not None:
+        q2 = q2.filter(
+            models.Deck.source_language_id == pair.source_language_id,
+            models.Deck.target_language_id == pair.target_language_id,
+        )
 
     counts["new"] += q2.count()
     return counts

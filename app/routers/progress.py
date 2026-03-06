@@ -148,6 +148,29 @@ def monthly_progress(
         ],
     }
 
+def get_user_pair_deck_ids(db, user_id: int, pair_id: int) -> list[int]:
+    pair = (
+        db.query(models.UserLearningPair)
+        .filter(
+            models.UserLearningPair.user_id == user_id,
+            models.UserLearningPair.id == pair_id,
+        )
+        .first()
+    )
+    if not pair:
+        return []
+
+    rows = (
+        db.query(models.Deck.id)
+        .join(models.DeckAccess, models.DeckAccess.deck_id == models.Deck.id)
+        .filter(
+            models.DeckAccess.user_id == user_id,
+            models.Deck.source_language_id == pair.source_language_id,
+            models.Deck.target_language_id == pair.target_language_id,
+        )
+        .all()
+    )
+    return [r[0] for r in rows]
 
 @router.get("/summary", response_model=schemas.ProgressSummaryOut)
 def progress_summary(
@@ -160,10 +183,27 @@ def progress_summary(
     d = bishkek_today()
 
     # today progress row
+    if pair_id is None:
+        pair = crud.get_default_learning_pair(db, current_user.id)
+        if not pair:
+            raise HTTPException(status_code=400, detail="No default learning pair set")
+        pair_id = pair.id
+    else:
+        pair = (
+            db.query(models.UserLearningPair)
+            .filter(
+                models.UserLearningPair.user_id == current_user.id,
+                models.UserLearningPair.id == pair_id,
+            )
+            .first()
+        )
+        if not pair:
+            raise HTTPException(status_code=404, detail="Learning pair not found")
+
     dp = crud.get_daily_progress_for_day(db, current_user.id, pair_id, d)
 
     # today created cards
-    today_added = crud.count_cards_created_on_day(db, current_user.id, d, deck_id=deck_id)
+    today_added = crud.count_cards_created_on_day(db, current_user.id, d, deck_id=deck_id, pair_id=pair_id)
 
     # streak
     st = crud.get_streak(db, current_user.id, pair_id, threshold=streak_threshold)
@@ -174,9 +214,9 @@ def progress_summary(
     #  - implement global due counts across all decks.
     # For now, do deck-only if deck_id provided:
     if deck_id is not None:
-        due_count = crud.count_due_reviews(db, current_user.id, deck_id)
-        new_available = crud.count_new_available(db, current_user.id, deck_id)
-        next_due = crud.get_next_due_at(db, current_user.id, deck_id)
+        due_count = crud.count_due_reviews(db, current_user.id, deck_id, pair_id=pair_id)
+        new_available = crud.count_new_available(db, current_user.id, deck_id, pair_id=pair_id)
+        next_due = crud.get_next_due_at(db, current_user.id, deck_id, pair_id=pair_id)
     else:
         due_count = 0
         new_available = 0
@@ -185,8 +225,8 @@ def progress_summary(
     today_cards_done = dp.cards_done 
     today_new_done = dp.new_done
     # totals
-    total_cards = crud.count_total_cards(db, current_user.id, deck_id=deck_id)
-    status_counts = crud.count_progress_statuses(db, current_user.id, deck_id=deck_id)
+    total_cards = crud.count_total_cards(db, current_user.id, deck_id=deck_id, pair_id=pair_id)
+    status_counts = crud.count_progress_statuses(db, current_user.id, deck_id=deck_id, pair_id=pair_id)
 
     daily_card_target = int(getattr(current_user, "daily_card_target", 20) or 20)
     daily_new_target = int(getattr(current_user, "daily_new_target", 7) or 7)

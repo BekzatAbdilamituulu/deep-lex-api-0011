@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from .. import crud, schemas
+from .. import crud, schemas, models
 from ..database import get_db
 from ..deps import get_current_user
 
@@ -14,13 +14,23 @@ router = APIRouter(prefix="/decks", tags=["decks"])
 def list_my_decks(
     limit: int = 20,
     offset: int = 0,
+    pair_id: int | None = None,
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
 ):
     limit = max(1, min(limit, 100))
     offset = max(0, offset)
 
-    items, total = crud.get_user_decks(db, user.id, limit=limit, offset=offset)
+    try:
+        items, total = crud.get_user_decks(
+            db,
+            user.id,
+            limit=limit,
+            offset=offset,
+            pair_id=pair_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
     return {
         "items": items,
@@ -42,11 +52,37 @@ def create_user_deck(
     if payload.deck_type != "users":
         raise HTTPException(status_code=400, detail="Only 'users' decks can be created manually")
 
-    pair = crud.get_default_learning_pair(db, user.id)
-    if not pair:
-        raise HTTPException(status_code=400, detail="Default learning pair not set")
+    pair = None
 
-    # create a storage deck for the default pair
+    if payload.pair_id is not None:
+        pair = crud.get_user_learning_pair(db, user.id, payload.pair_id)
+        if not pair:
+            raise HTTPException(status_code=404, detail="Learning pair not found")
+
+    elif payload.source_language_id is not None or payload.target_language_id is not None:
+        if payload.source_language_id is None or payload.target_language_id is None:
+            raise HTTPException(
+                status_code=422,
+                detail="Provide both source_language_id and target_language_id, or neither",
+            )
+
+        if payload.source_language_id == payload.target_language_id:
+            raise HTTPException(status_code=422, detail="Source and target must differ")
+
+        pair = crud.get_user_learning_pair_by_langs(
+            db,
+            user.id,
+            payload.source_language_id,
+            payload.target_language_id,
+        )
+        if not pair:
+            raise HTTPException(status_code=404, detail="Learning pair not found")
+
+    else:
+        pair = crud.get_default_learning_pair(db, user.id)
+        if not pair:
+            raise HTTPException(status_code=400, detail="No default learning pair set")
+
     return crud.create_deck(
         db,
         name=payload.name,
@@ -196,6 +232,24 @@ def update_card(
         # includes "Duplicate word in this deck" and "Front is required"
         raise HTTPException(status_code=400, detail=str(e))
 
+@router.post("/{deck_id}/cards/{card_id}/reset", response_model=schemas.CardOut)
+def reset_card(
+    deck_id: int,
+    card_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    try:
+        return crud.reset_card_progress(
+            db,
+            deck_id=deck_id,
+            card_id=card_id,
+            user_id=user.id,
+        )
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="No permission to access deck")
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Card not found")
 
 @router.delete("/{deck_id}/cards/{card_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_card(
