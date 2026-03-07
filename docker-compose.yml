@@ -1,0 +1,23 @@
+services:
+  api:
+    build:
+      context: ./backend
+    container_name: flashcards-api
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    volumes:
+      - sqlite_data:/app/data
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: flashcards-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+
+volumes:
+  sqlite_data:

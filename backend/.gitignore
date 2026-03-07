@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyc
+
+# virtual env
+venv/
+.env
+
+# databases
+data/
+*.db
+*.sqlite3
+
+# pytest
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+*.zip
+
+
+
+
+
