@@ -25,7 +25,13 @@ data/
 
 *.zip
 
+# Python
+backend/__pycache__/
+backend/.venv/
 
+# Node
+frontend/node_modules/
+frontend/dist/
 
 
 
