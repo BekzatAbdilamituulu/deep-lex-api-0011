@@ -4,6 +4,9 @@ Monorepo for a reading-centered language learning app.
 
 DeepLex helps users save words from books and texts, organize them by source, and review them through contextual study.
 
+Live site:
+- `https://deeplex.onrender.com`
+
 - `backend/`: FastAPI API + PostgreSQL + Alembic
 - `frontend/`: React + Vite client
 
@@ -129,6 +132,16 @@ A word saved from a book should typically:
   - `/app/library/:deckId`
 
 ## Recent Fixes and Improvements
+
+### Added today
+- Deployed frontend and backend on Render
+- Live app URL added: `https://deeplex.onrender.com`
+- Migrated the project to PostgreSQL-only
+- Removed old SQLite setup and references from the codebase
+- Reset Alembic to a fresh PostgreSQL-first migration baseline
+- Added Google sign-in with Google OAuth 2.0 / Google Identity Services
+- Added Render deployment config and updated deployment documentation
+- Fixed GitHub Actions so tests run from the correct repo-root workflow location
 
 ### Architecture / product cleanup
 - Separated **source** and **deck** concepts more clearly
@@ -345,7 +358,10 @@ This repo is set up for a split Render deployment:
 
 - backend: Render web service from `backend/`
 - frontend: Render static site from `frontend/`
-- database: Render Postgres, connected through `DATABASE_URL`
+- database: PostgreSQL connected through `DATABASE_URL`
+
+Current deployed frontend:
+- `https://deeplex.onrender.com`
 
 The repo root includes a [`render.yaml`](/home/bekzat/Desktop/cortex/render.yaml) blueprint for the backend and frontend services. It intentionally leaves secrets and environment-specific values unsynced so they can be entered in Render.
 
