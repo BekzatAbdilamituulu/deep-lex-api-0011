@@ -14,7 +14,7 @@ This README reflects the current project after the latest source/study/dashboard
 
 ## Screenshots
 
-<image-card alt="Dashboard" src="frontend/public/1.png" ></image-card>
+![Dashboard](frontend/public/1.png)
 
 ## Repository Structure
 
