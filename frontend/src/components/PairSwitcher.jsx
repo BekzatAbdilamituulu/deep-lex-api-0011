@@ -30,7 +30,7 @@ function pairLabel(pair) {
   return `${readLang(pair, "source")} → ${readLang(pair, "target")}`;
 }
 
-export default function PairSwitcher() {
+export default function PairSwitcher({ compact = false }) {
   const { pairs, activePair, loading, setActivePair } = useActivePair();
   const [switching, setSwitching] = useState(false);
 
@@ -51,6 +51,16 @@ export default function PairSwitcher() {
   }
 
   if (!pairs?.length) {
+    if (compact) {
+      return (
+        <Link
+          to="/app/pairs/new"
+          className="text-xs rounded-full border border-zinc-300 px-3 py-1 text-zinc-600 hover:bg-zinc-50"
+        >
+          + Pair
+        </Link>
+      );
+    }
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-3 text-sm text-gray-600">
         <p>No learning pairs yet.</p>
@@ -62,6 +72,27 @@ export default function PairSwitcher() {
             Add Pair
           </Link>
         </div>
+      </div>
+    );
+  }
+
+  if (compact) {
+    return (
+      <div className="flex items-center gap-2">
+        <select
+          className="max-w-[160px] rounded-full border border-zinc-300 bg-white px-3 py-1 text-xs outline-none focus:ring-1 focus:ring-zinc-400"
+          value={activePair?.id ? String(activePair.id) : ""}
+          onChange={onChange}
+          disabled={disabled}
+        >
+          {!activePair ? <option value="" disabled>Select pair</option> : null}
+          {pairs.map((pair) => (
+            <option key={pair.id} value={pair.id}>
+              {pairLabel(pair)}
+            </option>
+          ))}
+        </select>
+        <Link to="/app/pairs/new" className="text-xs text-zinc-500 hover:text-zinc-900">+</Link>
       </div>
     );
   }

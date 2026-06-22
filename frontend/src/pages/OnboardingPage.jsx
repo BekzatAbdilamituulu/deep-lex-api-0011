@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { DecksApi, LanguagesApi, UsersApi } from "../api/endpoints";
 import PairForm from "../components/PairForm";
 import Card from "../components/Card";
+import ProgressBar from "../components/ProgressBar";
 import { useActivePair } from "../context/ActivePairContext";
 
 function extractError(e) {
@@ -87,49 +88,54 @@ export default function OnboardingPage() {
     loadLanguages();
   }, []);
 
-  if (loading) return <p>Loading...</p>;
+  if (loading) return (
+    <div className="max-w-xl mx-auto p-6">
+      <div className="text-center text-sm text-zinc-500">Loading languages…</div>
+    </div>
+  );
 
   return (
-    <div className="space-y-4">
+    <div className="max-w-xl mx-auto p-6 space-y-8">
+      {/* Progress indicator */}
       <div>
-        <h1 className="text-2xl font-bold">Learn languages through reading</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Save new words while reading books and remember them long-term.
+        <div className="flex items-center justify-between text-xs text-zinc-500 mb-2">
+          <div>Step 2 of 2</div>
+          <div>Choose your languages</div>
+        </div>
+        <ProgressBar value={100} max={100} fillClassName="bg-zinc-900" />
+      </div>
+
+      <div>
+        <h1 className="text-3xl font-semibold tracking-tighter">Set up your first pair</h1>
+        <p className="mt-2 text-zinc-600">
+          Tell us which language you're learning and your native language. We'll create your first source deck.
         </p>
       </div>
 
-      <Card className="space-y-3">
-        <div>
-          <h2 className="text-base font-semibold">Keep words in context</h2>
-          <p className="text-sm text-gray-600">
-            Add the sentence where you found the word. Context helps memory.
-          </p>
-        </div>
-        <div>
-          <h2 className="text-base font-semibold">Review calmly</h2>
-          <p className="text-sm text-gray-600">
-            A simple reading review system helps you remember without pressure.
-          </p>
-        </div>
-        <div>
-          <h2 className="text-base font-semibold">Build your personal vocabulary library</h2>
-          <p className="text-sm text-gray-600">
-            Organize words by books, articles, and sources.
-          </p>
-        </div>
-      </Card>
-
       <Card>
+        <div className="mb-4">
+          <div className="uppercase text-xs tracking-widest text-zinc-500 mb-1">Why this matters</div>
+          <ul className="text-sm text-zinc-600 space-y-1">
+            <li>• Words stay tied to the exact sentence you read</li>
+            <li>• Review in the direction that makes sense for you</li>
+            <li>• Start capturing vocabulary immediately</li>
+          </ul>
+        </div>
+
         <PairForm
           languages={languages}
           initialLearningId={initialLearningId}
           initialTranslationId={initialTranslationId}
-          submitLabel="Start reading smarter"
+          submitLabel="Create my first pair"
           saving={saving}
           error={error}
           onSubmit={handleSubmit}
         />
       </Card>
+
+      <div className="text-center text-xs text-zinc-500">
+        You can add more language pairs later from your profile.
+      </div>
     </div>
   );
 }

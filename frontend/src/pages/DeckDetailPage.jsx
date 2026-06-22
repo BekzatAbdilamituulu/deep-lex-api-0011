@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { CardsApi, DecksApi, ReadingSourcesApi } from "../api/endpoints";
+import { CardsApi, DecksApi, ProgressApi, ReadingSourcesApi, StudyApi } from "../api/endpoints";
 import Button from "../components/Button";
 import Card from "../components/Card";
 import Input from "../components/Input";
@@ -49,6 +49,7 @@ export default function SourceDetailPage() {
   const [source, setSource] = useState(null);
   const [sourceStats, setSourceStats] = useState(null);
   const [mainDeck, setMainDeck] = useState(null);
+  const [deckStats, setDeckStats] = useState(null); // for tab stats
 
   const [cardsPage, setCardsPage] = useState(null);
   const [offset, setOffset] = useState(0);
@@ -87,6 +88,9 @@ export default function SourceDetailPage() {
   const [importPreview, setImportPreview] = useState([]);
   const [importMsg, setImportMsg] = useState("");
   const [importing, setImporting] = useState(false);
+
+  // Tabbed view
+  const [activeTab, setActiveTab] = useState("cards"); // "cards" | "stats"
 
   const cards = useMemo(() => cardsPage?.items ?? [], [cardsPage]);
 
@@ -151,6 +155,15 @@ export default function SourceDetailPage() {
       setCardsPage({ items: detail?.cards ?? [], meta: detail?.meta ?? { total: 0, offset: 0, limit: PAGE_LIMIT, has_more: false } });
       setOffset(nextOffset);
       setCurrentSourceForPair(activePair.id, loadedSource.id);
+
+      // Load deck progress stats for the stats tab
+      if (resolvedMainDeck?.id) {
+        try {
+          const prog = await ProgressApi.summary({ pair_id: activePair.id, deck_id: resolvedMainDeck.id });
+          setDeckStats(prog.data);
+        } catch {}
+      }
+
       return true;
     } catch (e) {
       setError(extractError(e));
@@ -514,32 +527,52 @@ export default function SourceDetailPage() {
               ) : null}
             </>
           )}
-          <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-600 sm:grid-cols-4">
-            <div className="rounded-lg border border-gray-200 bg-white px-2 py-2">
-              Total words: <span className="font-semibold text-gray-900">{totalWords}</span>
-            </div>
-            <div className="rounded-lg border border-gray-200 bg-white px-2 py-2">
-              Due: <span className="font-semibold text-gray-900">{dueWords}</span>
-            </div>
-            <div className="rounded-lg border border-gray-200 bg-white px-2 py-2">
-              Added today: <span className="font-semibold text-gray-900">{sourceStats?.added_today ?? 0}</span>
-            </div>
-            <div className="rounded-lg border border-gray-200 bg-white px-2 py-2">
-              Difficult: <span className="font-semibold text-gray-900">{difficultWordsCount}</span>
-            </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button
+              variant="primary"
+              className="text-base px-6"
+              onClick={() => (mainDeck?.id ? nav(`/app/study/${mainDeck.id}?sourceId=${sourceId}`) : null)}
+              disabled={!mainDeck?.id || editingSource}
+            >
+              ▶ Start Study from this Source
+            </Button>
+            <Button variant="secondary" onClick={startSourceEdit} disabled={editingSource || deletingSource}>
+              Edit source
+            </Button>
+          </div>
+
+          {/* Tabs */}
+          <div className="mt-4 border-b flex gap-6 text-sm">
+            <button
+              onClick={() => setActiveTab("cards")}
+              className={`pb-2 border-b-2 transition ${activeTab === "cards" ? "border-black font-medium" : "border-transparent text-gray-500"}`}
+            >
+              Cards ({cards.length})
+            </button>
+            <button
+              onClick={() => setActiveTab("stats")}
+              className={`pb-2 border-b-2 transition ${activeTab === "stats" ? "border-black font-medium" : "border-transparent text-gray-500"}`}
+            >
+              Stats
+            </button>
           </div>
         </div>
-
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="primary"
-            onClick={() => (mainDeck?.id ? nav(`/app/study/${mainDeck.id}?sourceId=${sourceId}`) : null)}
-            disabled={!mainDeck?.id || editingSource}
-          >
-            Review from this source
-          </Button>
-        </div>
       </div>
+
+      {activeTab === "stats" && (
+        <Card>
+          <h3 className="font-semibold mb-3">Source & Deck Stats</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>Total words: <span className="font-bold">{totalWords}</span></div>
+            <div>Due reviews: <span className="font-bold text-amber-600">{dueWords}</span></div>
+            <div>Mastered: <span className="font-bold text-emerald-600">{deckStats?.total_mastered ?? "-"}</span></div>
+            <div>New: <span className="font-bold">{deckStats?.total_new ?? "-"}</span></div>
+          </div>
+          <p className="mt-3 text-xs text-gray-500">Stats pulled from Progress API + source data.</p>
+        </Card>
+      )}
+
+      {/* Cards content (tab controlled via activeTab, but always rendered for structure) */}
 
       {error ? (
         <pre className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">{error}</pre>
@@ -843,6 +876,7 @@ export default function SourceDetailPage() {
           </Button>
         </div>
       ) : null}
+      )}
     </div>
   );
 }

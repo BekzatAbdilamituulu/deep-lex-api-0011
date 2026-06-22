@@ -1,7 +1,8 @@
-export default function Card({ children, className = "" }) {
+export default function Card({ children, className = "", ...props }) {
   return (
-    <div
-      className={`rounded-2xl border border-gray-100 bg-white p-6 shadow-lg ${className}`.trim()}
+    <div 
+      className={`bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-3xl p-6 shadow-sm ${className}`} 
+      {...props}
     >
       {children}
     </div>

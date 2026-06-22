@@ -1,104 +1,70 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { DecksApi, ReadingSourcesApi, StudyApi } from "../api/endpoints";
-import Button from "../components/Button";
-import Card from "../components/Card";
 import { useActivePair } from "../context/ActivePairContext";
 import { memoryStrengthFromCard } from "../utils/memoryStrength";
+import Button from "../components/Button";
+import ProgressBar from "../components/ProgressBar";
 
 function extractError(e) {
   if (e?.response?.data) return JSON.stringify(e.response.data);
   return e?.message ?? "Request failed";
 }
 
-function escapeRegExp(text) {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function buildClozeSentence(sentence, word) {
-  const sourceSentence = String(sentence || "").trim();
-  const sourceWord = String(word || "").trim();
-  if (!sourceSentence || !sourceWord) return null;
-
-  const safeWord = escapeRegExp(sourceWord);
-  const regex = new RegExp(`\\b${safeWord}\\b`, "gi");
-  const maskedByBoundary = sourceSentence.replace(regex, "______");
-  if (maskedByBoundary !== sourceSentence) return maskedByBoundary;
-
-  const plainRegex = new RegExp(safeWord, "gi");
-  const maskedByPlain = sourceSentence.replace(plainRegex, "______");
-  if (maskedByPlain !== sourceSentence) return maskedByPlain;
-
-  return null;
-}
-
-function renderSentenceWithEmphasis(sentence, word, className) {
-  const sourceSentence = String(sentence || "").trim();
-  const sourceWord = String(word || "").trim();
-  if (!sourceSentence) return null;
-  if (!sourceWord) return <span className={className}>{sourceSentence}</span>;
-
-  const safeWord = escapeRegExp(sourceWord);
-  const regex = new RegExp(`(${safeWord})`, "gi");
-  const parts = sourceSentence.split(regex);
-
-  return (
-    <span className={className}>
-      {parts.map((part, index) => {
-        const matchesWord = part && part.localeCompare(sourceWord, undefined, { sensitivity: "accent" }) === 0;
-        if (!matchesWord && part.toLowerCase() !== sourceWord.toLowerCase()) {
-          return <span key={`${part}-${index}`}>{part}</span>;
-        }
-        return (
-          <mark key={`${part}-${index}`} className="rounded bg-indigo-100 px-1 text-inherit">
-            {part}
-          </mark>
-        );
-      })}
-    </span>
-  );
-}
-
-function formatLocalDateTime(value) {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleString();
-}
-
 export default function StudyPage() {
   const { deckId } = useParams();
   const id = Number(deckId);
-  const sourceId = Number(new URLSearchParams(window.location.search).get("sourceId") || 0);
+  const urlSourceId = Number(new URLSearchParams(window.location.search).get("sourceId") || 0);
+
   const { activePair } = useActivePair();
 
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [deckName, setDeckName] = useState("");
-  const [deckMeta, setDeckMeta] = useState(null);
-  const [sourceMeta, setSourceMeta] = useState(null);
-
   const [batch, setBatch] = useState(null);
   const [idx, setIdx] = useState(0);
   const [revealed, setRevealed] = useState(false);
+  const [deckName, setDeckName] = useState("");
 
   const current = useMemo(() => batch?.cards?.[idx] ?? null, [batch, idx]);
-  const clozeSentence = useMemo(
-    () => buildClozeSentence(current?.source_sentence, current?.front),
-    [current]
-  );
-  const isClozeMode = Boolean(clozeSentence);
-  const reviewSourceTitle = current?.reading_source?.title || current?.source_title || sourceMeta?.title || deckName || `Source #${id}`;
-  const reviewSourceAuthor = current?.reading_source?.author || current?.source_author || sourceMeta?.author || deckMeta?.author_name || null;
-  const reviewSentence = current?.source_sentence || current?.example_sentence || null;
-  const savedAtLabel = formatLocalDateTime(current?.created_at);
-  const memoryStrength = memoryStrengthFromCard(current);
-  const sourceContextLabel = sourceMeta?.kind || current?.source_kind || "Book";
   const remaining = useMemo(() => {
     if (!batch?.cards?.length) return 0;
     return Math.max(0, batch.cards.length - idx - 1);
   }, [batch, idx]);
+
+  const progress = batch?.cards?.length ? Math.round(((idx) / batch.cards.length) * 100) : 0;
+
+  // Keyboard support: Space = flip, K = I Know, D = I Don't Know
+  const handleKey = useCallback((e) => {
+    if (busy || !current) return;
+
+    if (!revealed && (e.key === " " || e.key === "Enter")) {
+      e.preventDefault();
+      setRevealed(true);
+      return;
+    }
+
+    if (revealed) {
+      const key = e.key.toLowerCase();
+      if (key === "k") {
+        e.preventDefault();
+        doAnswer(3); // I Know (positive recall)
+      } else if (key === "d") {
+        e.preventDefault();
+        doAnswer(0); // I Don't Know (negative)
+      }
+    }
+
+    if (e.key.toLowerCase() === "r") {
+      // reload batch
+      loadBatch();
+    }
+  }, [revealed, current, busy]);
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [handleKey]);
 
   async function loadBatch() {
     setLoading(true);
@@ -108,8 +74,9 @@ export default function StudyPage() {
     setRevealed(false);
 
     try {
-      const res = await StudyApi.next(id, sourceId > 0 ? { reading_source_id: sourceId } : {});
-      setBatch(res.data);
+      const params = urlSourceId > 0 ? { reading_source_id: urlSourceId } : {};
+      const res = await StudyApi.next(id, params);
+      setBatch(res.data || res); // support both
     } catch (e) {
       setError(extractError(e));
     } finally {
@@ -117,17 +84,22 @@ export default function StudyPage() {
     }
   }
 
-  async function answer(learned) {
+  async function doAnswer(quality) {
     if (!current) return;
     setBusy(true);
     setError("");
 
     try {
-      await StudyApi.answer(current.id, learned);
+      // Support both answer and submit shapes
+      if (StudyApi.submit) {
+        await StudyApi.submit(current.id, { quality });
+      } else {
+        await StudyApi.answer(current.id, quality > 2);
+      }
 
-      const nextIndex = idx + 1;
-      if (batch && nextIndex < batch.cards.length) {
-        setIdx(nextIndex);
+      const nextIdx = idx + 1;
+      if (batch && nextIdx < batch.cards?.length) {
+        setIdx(nextIdx);
         setRevealed(false);
       } else {
         await loadBatch();
@@ -139,189 +111,140 @@ export default function StudyPage() {
     }
   }
 
+  // Load deck + first batch
   useEffect(() => {
-    async function loadDeck() {
-      if (!activePair?.id) {
-        setDeckName("");
-        setError("No active learning pair selected.");
+    async function init() {
+      if (id <= 0) {
+        setError("Invalid deck id");
         setLoading(false);
         return;
       }
-
       try {
-        const requests = [DecksApi.list(200, 0, { pair_id: activePair.id })];
-        if (sourceId > 0) requests.push(ReadingSourcesApi.get(sourceId));
+        const decksRes = await DecksApi.list(50, 0, { pair_id: activePair?.id });
+        const decks = decksRes.data?.items || [];
+        const match = decks.find(d => d.id === id);
+        if (match) setDeckName(match.name || "Deck");
 
-        const [decksRes, sourceRes] = await Promise.all(requests);
-        const pairDecks = decksRes.data?.items ?? [];
-        const match = pairDecks.find((deck) => Number(deck.id) === id) ?? null;
-
-        if (!match) {
-          setDeckName("");
-          setDeckMeta(null);
-          setSourceMeta(null);
-          setError("This review is not available for the active pair.");
-          setLoading(false);
-          return;
-        }
-
-        setDeckName(match.name || "");
-        setDeckMeta(match);
-        setSourceMeta(sourceRes?.data ?? null);
+        await loadBatch();
       } catch (e) {
-        setDeckName("");
-        setDeckMeta(null);
-        setSourceMeta(null);
         setError(extractError(e));
         setLoading(false);
-        return;
       }
-
-      await loadBatch();
     }
-
-    if (id > 0) {
-      loadDeck();
-    } else {
-      setError("Invalid review id.");
-      setLoading(false);
-    }
+    if (activePair) init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, sourceId, activePair?.id]);
+  }, [id, urlSourceId, activePair?.id]);
+
+  const card = current;
+
+  // Nice flip card with CSS
+  const FlipCard = ({ front, back, revealed: isRevealed, onFlip }) => (
+    <div 
+      className="relative h-[320px] w-full cursor-pointer perspective-1000" 
+      onClick={onFlip}
+    >
+      <div 
+        className={`relative h-full w-full rounded-3xl shadow-2xl transition-transform duration-500 preserve-3d ${isRevealed ? 'rotate-y-180' : ''}`}
+      >
+        {/* Front */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center rounded-3xl bg-white p-8 text-center backface-hidden">
+          <div className="text-xs uppercase tracking-[2px] text-zinc-500 mb-3">Recall</div>
+          <div className="text-5xl font-semibold tracking-tight leading-tight break-words">
+            {front}
+          </div>
+          <div className="mt-6 text-xs text-zinc-400">Tap or press SPACE to flip</div>
+        </div>
+
+        {/* Back */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center rounded-3xl bg-white p-8 text-center rotate-y-180 backface-hidden">
+          <div className="text-xs uppercase tracking-[2px] text-emerald-600 mb-2">Answer</div>
+          <div className="text-4xl font-semibold tracking-tight">{front}</div>
+          <div className="mt-3 text-3xl text-zinc-800">{back}</div>
+          {card?.source_sentence && (
+            <div className="mt-4 max-w-[85%] text-sm text-zinc-500 italic line-clamp-3">
+              “{card.source_sentence}”
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="mx-auto w-full max-w-md space-y-4 pb-8 pt-2">
-      <div className="rounded-3xl border border-white/50 bg-gradient-to-br from-indigo-500/20 via-blue-600/15 to-purple-600/20 p-4 shadow-sm">
-        <div className="flex items-center justify-between gap-3">
-          <div className="rounded-2xl bg-white/80 px-3 py-2 text-left shadow-sm">
-            <p className="text-[11px] uppercase tracking-[0.24em] text-indigo-700/60">Reading memory</p>
-            <p className="text-sm font-semibold text-gray-900">{sourceContextLabel}</p>
-          </div>
-          <div className="text-center">
-            <p className="text-xs text-indigo-700/60">Reviewing from</p>
-            <p className="text-sm font-semibold text-gray-900">{reviewSourceTitle}</p>
-            {reviewSourceAuthor ? (
-              <p className="text-xs text-indigo-700/60">{reviewSourceAuthor}</p>
-            ) : null}
-          </div>
-          <div className="rounded-2xl bg-white px-3 py-2 text-sm font-medium text-gray-800 shadow-sm">
-            {idx + 1} / {batch?.cards?.length ?? 0}
-          </div>
+    <div className="max-w-xl mx-auto px-4 py-6 pb-20 md:pb-8">
+      {/* Header */}
+      <div className="mb-5 flex items-center justify-between">
+        <div>
+          <div className="text-sm text-zinc-500">Reading Review</div>
+          <div className="font-semibold text-xl">{deckName || "Session"}</div>
+        </div>
+        <div className="text-right text-xs text-zinc-500">
+          {idx + 1} / {batch?.cards?.length || 0} <br /> remaining: {remaining}
         </div>
       </div>
 
-      {loading ? <p className="text-center text-sm text-gray-500">Loading entries...</p> : null}
+      {/* Progress */}
+      {batch?.cards?.length > 0 && (
+        <div className="mb-6">
+          <ProgressBar value={progress} max={100} fillClassName="bg-zinc-900" />
+        </div>
+      )}
 
-      {error ? (
-        <pre className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">{error}</pre>
-      ) : null}
+      {loading && <div className="text-center py-12 text-zinc-400">Loading cards…</div>}
 
-      {!loading && current ? (
-        <div className="space-y-5">
-          <div className="relative mx-3 mt-2">
-            <div className="pointer-events-none absolute inset-x-3 top-3 h-full rounded-3xl border border-indigo-100/60 bg-indigo-50/50" />
-            <div className="pointer-events-none absolute inset-x-1 top-1 h-full rounded-3xl border border-indigo-100/60 bg-indigo-100/30" />
-            <Card className="relative rounded-2xl px-6 py-8 text-center">
-              <div className="mb-6 flex flex-wrap items-center justify-center gap-2 text-[11px] uppercase tracking-[0.22em] text-indigo-700/60">
-                <span className="rounded-full bg-indigo-50 px-3 py-1 text-indigo-700">Reading review</span>
-                {current.source_page ? (
-                  <span className="rounded-full bg-blue-100 px-3 py-1 text-blue-900">
-                    Page {current.source_page}
-                  </span>
-                ) : null}
-              </div>
-              <div className="flex min-h-[220px] items-center justify-center">
-                {!revealed ? (
-                  <div className="space-y-4">
-                    {isClozeMode ? (
-                      <p className="text-2xl font-semibold leading-relaxed text-gray-900">
-                        {clozeSentence.split("______").map((part, index, arr) => (
-                          <span key={`${index}-${part}`}>
-                            {part}
-                            {index < arr.length - 1 ? (
-                              <span className="mx-1 rounded bg-indigo-200 px-2 py-0.5 font-bold tracking-wide">
-                                ______
-                              </span>
-                            ) : null}
-                          </span>
-                        ))}
-                      </p>
-                    ) : (
-                      <>
-                        <p className="text-xs uppercase tracking-[0.24em] text-indigo-700/60">Word to remember</p>
-                        <p className="text-4xl font-bold leading-tight text-gray-900">{current.front}</p>
-                      </>
-                    )}
-                    {reviewSentence ? (
-                      <div className="space-y-2 rounded-3xl border border-indigo-100/60 bg-indigo-50/30 px-4 py-4 text-left">
-                        <p className="text-xs uppercase tracking-[0.24em] text-indigo-700/60">
-                          {isClozeMode ? "Fill the blank from the sentence" : "Seen in the book"}
-                        </p>
-                        {renderSentenceWithEmphasis(reviewSentence, current.front, "text-base leading-relaxed text-gray-800")}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <p className="text-xs uppercase tracking-[0.24em] text-indigo-700/60">Word</p>
-                      <p className="text-3xl font-bold leading-tight text-gray-900">{current.front}</p>
-                    </div>
-                    <div className="space-y-2">
-                      <p className="text-xs uppercase tracking-[0.24em] text-indigo-700/60">Meaning</p>
-                      <p className="text-2xl font-semibold leading-tight text-gray-900">{current.back}</p>
-                    </div>
-                    {reviewSentence ? (
-                      <div className="space-y-2 rounded-3xl border border-indigo-100/60 bg-indigo-50/30 px-4 py-4 text-left">
-                        <p className="text-xs uppercase tracking-[0.24em] text-indigo-700/60">Sentence from the book</p>
-                        {renderSentenceWithEmphasis(reviewSentence, current.front, "text-lg leading-relaxed text-gray-900")}
-                      </div>
-                    ) : null}
-                    <div className="grid gap-2 text-left text-sm text-gray-600">
-                      <p>Memory strength: {memoryStrength}</p>
-                      {reviewSourceTitle ? (
-                        <p>
-                          Source: {reviewSourceTitle}
-                          {reviewSourceAuthor ? ` · ${reviewSourceAuthor}` : ""}
-                        </p>
-                      ) : null}
-                      {current.source_page ? <p>Page: {current.source_page}</p> : null}
-                      {savedAtLabel ? <p>Saved: {savedAtLabel}</p> : null}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </Card>
-          </div>
+      {error && (
+        <div className="rounded-2xl bg-red-50 p-4 text-red-700 text-sm mb-4">{error}</div>
+      )}
+
+      {!loading && card && (
+        <div className="space-y-6">
+          <FlipCard 
+            front={card.front} 
+            back={card.back} 
+            revealed={revealed} 
+            onFlip={() => !busy && setRevealed(!revealed)} 
+          />
 
           {!revealed ? (
-            <Button variant="primary" onClick={() => setRevealed(true)} disabled={busy} className="w-full">
-              Reveal Answer
+            <Button 
+              onClick={() => setRevealed(true)} 
+              disabled={busy} 
+              className="w-full py-6 text-lg"
+            >
+              Reveal (space)
             </Button>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
-              <Button variant="secondary" onClick={() => answer(false)} disabled={busy} className="w-full">
-                I don't know
-              </Button>
-              <Button variant="primary" onClick={() => answer(true)} disabled={busy} className="w-full">
-                I know
-              </Button>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  disabled={busy}
+                  onClick={() => doAnswer(3)}
+                  className="rounded-3xl py-8 text-xl font-semibold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white transition active:scale-[0.985] disabled:opacity-60"
+                >
+                  I Know
+                </button>
+                <button
+                  disabled={busy}
+                  onClick={() => doAnswer(0)}
+                  className="rounded-3xl py-8 text-xl font-semibold bg-red-100 hover:bg-red-200 active:bg-red-300 text-red-700 transition active:scale-[0.985] disabled:opacity-60"
+                >
+                  I Don't Know
+                </button>
+              </div>
+              <p className="text-xs text-center text-zinc-400">Space = flip • K = I Know • D = I Don't Know • R = reload</p>
             </div>
           )}
-
-          <p className="text-center text-xs text-gray-500">Remaining in this batch: {remaining}</p>
         </div>
-      ) : null}
+      )}
 
-      {!loading && !current && !error ? (
-        <Card className="text-center">
-          <h2 className="text-lg font-semibold">No reviewable entries</h2>
-          <p className="mt-1 text-gray-700">No entries available for this source in the active pair.</p>
-          <Button className="mt-4 w-full" variant="primary" onClick={loadBatch}>
-            Load next batch
-          </Button>
-        </Card>
-      ) : null}
+      {!loading && !card && !error && (
+        <div className="rounded-3xl border p-8 text-center">
+          <div className="text-2xl mb-2">🎉</div>
+          <div className="font-semibold">Session complete</div>
+          <p className="text-sm text-zinc-500 mt-1">Great work! Come back later for more reviews.</p>
+          <Button onClick={loadBatch} className="mt-6">Load more</Button>
+        </div>
+      )}
     </div>
   );
 }

@@ -3,8 +3,8 @@ export default function ProgressBar({
   max = 100,
   label,
   className = "",
-  trackClassName = "bg-stone-200",
-  fillClassName = "bg-black",
+  trackClassName = "bg-stone-200 dark:bg-zinc-700",
+  fillClassName = "bg-black dark:bg-white",
 }) {
   const safeMax = Number.isFinite(Number(max)) ? Number(max) : 0;
   const safeValue = Number.isFinite(Number(value)) ? Number(value) : 0;

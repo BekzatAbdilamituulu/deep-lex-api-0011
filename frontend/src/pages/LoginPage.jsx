@@ -52,55 +52,63 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 flex items-center justify-center">
-      <Card className="w-full max-w-[400px]">
-        <h1 className="text-2xl font-bold">Login</h1>
-        <p className="mt-1 text-sm text-gray-500">Welcome back to your reading vocabulary companion.</p>
+    <div className="min-h-screen bg-zinc-50 px-4 flex items-center justify-center">
+      <Card className="w-full max-w-md">
+        <h1 className="text-3xl font-semibold tracking-tighter">Welcome back</h1>
+        <p className="mt-1 text-sm text-zinc-600">Sign in to continue learning.</p>
 
-        <form onSubmit={onSubmit} className="mt-6 grid gap-4">
-          <label className="grid gap-2">
-            <span className="text-sm text-gray-700">Username</span>
+        <form onSubmit={onSubmit} className="mt-8 space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 mb-1.5">Username</label>
             <Input
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"
+              placeholder="yourusername"
             />
-          </label>
+          </div>
 
-          <label className="grid gap-2">
-            <span className="text-sm text-gray-700">Password</span>
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 mb-1.5">Password</label>
             <Input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
-            />
-          </label>
-
-          <Button type="submit" variant="primary" disabled={busy} className="w-full">
-            {busy ? "Logging in..." : "Login"}
-          </Button>
-
-          <div className="grid gap-2">
-            <div className="relative py-1 text-center text-xs uppercase tracking-[0.2em] text-gray-400">
-              <span className="bg-white px-2">Or</span>
-            </div>
-            <GoogleSignInButton
-              disabled={busy}
-              onCredential={onGoogleCredential}
-              onError={setError}
+              placeholder="••••••••"
             />
           </div>
 
-          {error ? (
-            <pre className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">{error}</pre>
-          ) : null}
+          <Button type="submit" variant="primary" disabled={busy} className="w-full mt-2" size="lg">
+            {busy ? "Signing in..." : "Sign in"}
+          </Button>
+
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-zinc-200" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase tracking-widest text-zinc-400">
+              <span className="bg-white px-3">or</span>
+            </div>
+          </div>
+
+          <GoogleSignInButton
+            disabled={busy}
+            onCredential={onGoogleCredential}
+            onError={setError}
+          />
+
+          {error && (
+            <div className="rounded-2xl bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
         </form>
 
-        <p className="mt-4 text-sm text-gray-500">
-          No account?{" "}
-          <Link to="/register" className="font-medium text-black underline">
-            Register
+        <p className="mt-6 text-center text-sm text-zinc-600">
+          Don’t have an account?{" "}
+          <Link to="/register" className="font-medium text-zinc-900 hover:underline">
+            Create one
           </Link>
         </p>
       </Card>

@@ -37,44 +37,48 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 flex items-center justify-center">
-      <Card className="w-full max-w-[400px]">
-        <h1 className="text-2xl font-bold">Register</h1>
-        <p className="mt-1 text-sm text-gray-500">Create your account for focused reading vocabulary.</p>
+    <div className="min-h-screen bg-zinc-50 px-4 flex items-center justify-center">
+      <Card className="w-full max-w-md">
+        <h1 className="text-3xl font-semibold tracking-tighter">Create your account</h1>
+        <p className="mt-1 text-sm text-zinc-600">Start building your personal reading vocabulary.</p>
 
-        <form onSubmit={onSubmit} className="mt-6 grid gap-4">
-          <label className="grid gap-2">
-            <span className="text-sm text-gray-700">Username</span>
+        <form onSubmit={onSubmit} className="mt-8 space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 mb-1.5">Username</label>
             <Input
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"
+              placeholder="choose a username"
             />
-          </label>
+          </div>
 
-          <label className="grid gap-2">
-            <span className="text-sm text-gray-700">Password</span>
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 mb-1.5">Password</label>
             <Input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="new-password"
+              placeholder="create a strong password"
             />
-          </label>
+          </div>
 
-          <Button type="submit" variant="primary" disabled={busy} className="w-full">
-            {busy ? "Creating..." : "Create account"}
+          <Button type="submit" variant="primary" disabled={busy} className="w-full mt-2" size="lg">
+            {busy ? "Creating account..." : "Create account"}
           </Button>
 
-          {error ? (
-            <pre className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">{error}</pre>
-          ) : null}
+          {error && (
+            <div className="rounded-2xl bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
         </form>
 
-        <p className="mt-4 text-sm text-gray-500">
-          Already have account?{" "}
-          <Link to="/login" className="font-medium text-black underline">
-            Login
+        <p className="mt-6 text-center text-sm text-zinc-600">
+          Already have an account?{" "}
+          <Link to="/login" className="font-medium text-zinc-900 hover:underline">
+            Sign in
           </Link>
         </p>
       </Card>

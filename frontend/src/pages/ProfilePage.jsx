@@ -5,7 +5,7 @@ import { tokens } from "../api/tokens";
 import { useActivePair } from "../context/ActivePairContext";
 import Button from "../components/Button";
 import Card from "../components/Card";
-import Layout from "../components/Layout";
+import ProgressBar from "../components/ProgressBar";
 
 function formatDate(d) {
   return d.toISOString().split("T")[0];
@@ -38,12 +38,19 @@ function colorForCount(count) {
 
 function textClassForCount(count) {
   // Use white text for darker cells.
-  return count >= 10 ? "text-white" : "text-gray-900";
+  return count >= 10 ? "text-white" : "text-gray-900 dark:text-zinc-100";
+}
+
+function pairLabel(pair) {
+  if (!pair) return "Unknown";
+  const s = pair.source_language_name || pair.source_language?.name || pair.source_language?.code || pair.source_language_id || "?";
+  const t = pair.target_language_name || pair.target_language?.name || pair.target_language?.code || pair.target_language_id || "?";
+  return `${s} → ${t}`;
 }
 
 export default function ProfilePage() {
   const nav = useNavigate();
-  const { activePair, loading: activePairLoading } = useActivePair();
+  const { activePair, loading: activePairLoading, pairs = [], setActivePair } = useActivePair();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [user, setUser] = useState(null);
@@ -51,6 +58,12 @@ export default function ProfilePage() {
   const [streak, setStreak] = useState(null);
   const [todayAdded, setTodayAdded] = useState(null);
   const [monthly, setMonthly] = useState(null);
+
+  // Modal for editing goals
+  const [goalsModalOpen, setGoalsModalOpen] = useState(false);
+  const [goalCardTarget, setGoalCardTarget] = useState(20);
+  const [goalNewTarget, setGoalNewTarget] = useState(7);
+  const [savingGoals, setSavingGoals] = useState(false);
 
   const today = new Date();
   const year = today.getFullYear();
@@ -109,6 +122,32 @@ export default function ProfilePage() {
     return map;
   }, [monthly]);
 
+  function openGoalsModal() {
+    if (user) {
+      setGoalCardTarget(user.daily_card_target ?? 20);
+      setGoalNewTarget(user.daily_new_target ?? 7);
+      setGoalsModalOpen(true);
+    }
+  }
+
+  async function saveGoals() {
+    setSavingGoals(true);
+    setError("");
+    try {
+      await UsersApi.updateGoals({
+        daily_card_target: Number(goalCardTarget),
+        daily_new_target: Number(goalNewTarget),
+      });
+      setGoalsModalOpen(false);
+      // reload to get updated user + data
+      await load();
+    } catch (e) {
+      setError(e?.message ?? "Failed to update goals");
+    } finally {
+      setSavingGoals(false);
+    }
+  }
+
   async function onLogout() {
     const refresh = tokens.getRefresh();
     try {
@@ -124,185 +163,272 @@ export default function ProfilePage() {
   }
 
   return (
-    <Layout className="space-y-4">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-bold">Profile</h1>
-        <p className="text-sm text-gray-600">
-          Your learning goals and progress across the active pair.
-        </p>
-      </div>
-
-      {!activePairLoading && !activePair ? (
-        <Card>
-          <p className="text-sm text-gray-700">Select an active pair to view progress stats.</p>
+    <div className="max-w-3xl mx-auto space-y-8 py-4">
+      {/* Top user card */}
+      {user ? (
+        <Card className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 flex items-center justify-center text-2xl font-semibold">
+              {user.username?.[0]?.toUpperCase() || "U"}
+            </div>
+            <div>
+              <div className="text-sm text-zinc-500 dark:text-zinc-400">Signed in as</div>
+              <div className="text-2xl font-semibold tracking-tight">{user.username}</div>
+            </div>
+          </div>
+          <div className="sm:ml-auto flex gap-2">
+            <Button variant="secondary" onClick={openGoalsModal}>
+              Edit goals
+            </Button>
+            <Button variant="outline" onClick={onLogout}>
+              Logout
+            </Button>
+          </div>
         </Card>
       ) : null}
 
       {error ? (
-        <pre className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</pre>
+        <div className="rounded-2xl border border-red-200 bg-red-50 dark:bg-red-950 p-3 text-sm text-red-700 dark:text-red-300">{error}</div>
+      ) : null}
+
+      {!activePairLoading && !activePair ? (
+        <Card>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">Select an active pair to view your profile and goals.</p>
+        </Card>
       ) : null}
 
       {activePair?.id && loading ? (
         <Card>
-          <p className="text-sm text-gray-700">Loading profile…</p>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">Loading profile…</p>
         </Card>
       ) : null}
 
-      {user ? (
-        <Card>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      {!loading && activePair && (
+        <>
+          {/* Daily Goals */}
+          <div>
+            <h2 className="text-lg font-semibold mb-3 tracking-tight">Daily Goals</h2>
+            <Card>
+              {user ? (
+                <div className="space-y-5">
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span>Card reviews target</span>
+                      <span className="font-medium">{user.daily_card_target} / day</span>
+                    </div>
+                    <ProgressBar
+                      value={summary?.today_cards_done ?? 0}
+                      max={user.daily_card_target || 1}
+                      fillClassName="bg-emerald-600 dark:bg-emerald-500"
+                    />
+                    <div className="text-xs text-zinc-500 mt-1">{summary?.today_cards_done ?? 0} done today</div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span>New words target</span>
+                      <span className="font-medium">{user.daily_new_target} / day</span>
+                    </div>
+                    <ProgressBar
+                      value={summary?.today_new_done ?? 0}
+                      max={user.daily_new_target || 1}
+                      fillClassName="bg-blue-600 dark:bg-blue-500"
+                    />
+                    <div className="text-xs text-zinc-500 mt-1">{summary?.today_new_done ?? 0} new today</div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-zinc-500">No goals set yet.</p>
+              )}
+            </Card>
+          </div>
+
+          {/* Learning Pairs */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold tracking-tight">Learning Pairs</h2>
+              <Button size="sm" onClick={() => nav("/app/pairs/new")}>+ Add new</Button>
+            </div>
+            {pairs.length > 0 ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {pairs.map((p) => {
+                  const isActive = activePair && p.id === activePair.id;
+                  return (
+                    <Card
+                      key={p.id}
+                      className={`cursor-pointer transition ${isActive ? "ring-2 ring-emerald-500" : "hover:border-zinc-300"}`}
+                      onClick={() => {
+                        if (!isActive) setActivePair(p.id);
+                      }}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="font-medium">{pairLabel(p)}</div>
+                          <div className="text-xs text-zinc-500 mt-0.5">ID: {p.id}</div>
+                        </div>
+                        {isActive && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300 font-medium">
+                            Active
+                          </span>
+                        )}
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            ) : (
+              <Card>
+                <p className="text-sm text-zinc-600">No learning pairs yet.</p>
+                <Button size="sm" className="mt-3" onClick={() => nav("/app/pairs/new")}>
+                  Create your first pair
+                </Button>
+              </Card>
+            )}
+          </div>
+
+          {/* Streak summary */}
+          {streak && (
             <div>
-              <div className="text-sm font-medium text-gray-500">Signed in as</div>
-              <div className="text-xl font-semibold text-gray-900">{user.username}</div>
-              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
-                  <span className="text-gray-600">Daily card target</span>
-                  <div className="font-semibold text-gray-900">{user.daily_card_target}</div>
+              <h2 className="text-lg font-semibold mb-3 tracking-tight">Streak</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Card className="text-center">
+                  <div className="text-sm text-zinc-500">Current streak</div>
+                  <div className="text-6xl font-semibold tracking-tighter mt-1 text-emerald-600 dark:text-emerald-400">
+                    {streak.current_streak}
+                  </div>
+                  <div className="text-xs mt-1">days</div>
+                </Card>
+                <Card className="text-center">
+                  <div className="text-sm text-zinc-500">Best streak</div>
+                  <div className="text-6xl font-semibold tracking-tighter mt-1">{streak.best_streak}</div>
+                  <div className="text-xs mt-1">days</div>
+                </Card>
+              </div>
+            </div>
+          )}
+
+          {/* Summary stats */}
+          {summary && (
+            <div>
+              <h2 className="text-lg font-semibold mb-3 tracking-tight">Overall</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <Card className="text-center">
+                  <div className="text-sm text-zinc-500">Total cards</div>
+                  <div className="text-4xl font-semibold mt-1">{summary.total_cards ?? 0}</div>
+                </Card>
+                <Card className="text-center">
+                  <div className="text-sm text-zinc-500">Mastered</div>
+                  <div className="text-4xl font-semibold mt-1 text-emerald-600">{summary.total_mastered ?? 0}</div>
+                </Card>
+                <Card className="text-center">
+                  <div className="text-sm text-zinc-500">Learning</div>
+                  <div className="text-4xl font-semibold mt-1 text-sky-600">{summary.total_learning ?? 0}</div>
+                </Card>
+                <Card className="text-center">
+                  <div className="text-sm text-zinc-500">New</div>
+                  <div className="text-4xl font-semibold mt-1 text-amber-600">{summary.total_new ?? 0}</div>
+                </Card>
+              </div>
+            </div>
+          )}
+
+          {/* Monthly heatmap */}
+          {monthly ? (
+            <div>
+              <h2 className="text-lg font-semibold mb-3 tracking-tight">Monthly Heatmap</h2>
+              <Card>
+                <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between mb-3">
+                  <div>
+                    <div className="font-medium">{year} / {String(month).padStart(2, "0")}</div>
+                  </div>
+                  <div className="text-xs text-zinc-500 dark:text-zinc-400">Cards reviewed per day</div>
                 </div>
-                <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
-                  <span className="text-gray-600">Daily new target</span>
-                  <div className="font-semibold text-gray-900">{user.daily_new_target}</div>
+
+                <div className="grid grid-cols-7 gap-1 text-center text-[10px] text-zinc-400 mb-1">
+                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+                    <div key={d}>{d}</div>
+                  ))}
                 </div>
+                <div className="grid grid-cols-7 gap-1">
+                  {monthMatrix.map((date, i) => {
+                    if (!date) return <div key={`empty-${i}`} className="h-8" />;
+                    const key = formatDate(date);
+                    const count = monthlyMap[key] || 0;
+                    const bg = colorForCount(count);
+                    return (
+                      <div
+                        key={key}
+                        title={`${key}: ${count} cards`}
+                        className={[
+                          "h-8 flex items-center justify-center rounded-lg text-xs font-medium transition",
+                          textClassForCount(count),
+                        ].join(" ")}
+                        style={{ background: bg }}
+                      >
+                        {date.getDate()}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400">
+                  {[0, 4, 9, 19, 20].map((c, idx) => (
+                    <div key={idx} className="flex items-center gap-1.5">
+                      <span className="inline-block h-3 w-3 rounded" style={{ background: colorForCount(c + (idx === 4 ? 1 : 0)) }} />
+                      {c === 0 ? "0" : `${c}+`}
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </div>
+          ) : null}
+        </>
+      )}
+
+      {/* Goals edit modal */}
+      {goalsModalOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+          onClick={() => !savingGoals && setGoalsModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-3xl bg-white dark:bg-zinc-900 p-6 shadow-xl border border-zinc-200 dark:border-zinc-700"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-xl font-semibold mb-1">Edit Daily Goals</h3>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-5">Set your daily targets for reviews and new words.</p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Daily card reviews target</label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={goalCardTarget}
+                  onChange={(e) => setGoalCardTarget(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Daily new words target</label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={goalNewTarget}
+                  onChange={(e) => setGoalNewTarget(e.target.value)}
+                />
               </div>
             </div>
 
-            <div className="shrink-0">
-              <Button variant="secondary" onClick={onLogout}>
-                Logout
+            <div className="flex gap-3 mt-6">
+              <Button onClick={saveGoals} disabled={savingGoals} className="flex-1">
+                {savingGoals ? "Saving..." : "Save Goals"}
+              </Button>
+              <Button variant="secondary" onClick={() => setGoalsModalOpen(false)} disabled={savingGoals} className="flex-1">
+                Cancel
               </Button>
             </div>
           </div>
-        </Card>
-      ) : null}
-
-      {streak ? (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <Card>
-            <h2 className="text-sm font-medium text-gray-500">Streak</h2>
-            <div className="mt-2">
-              <div className="text-3xl font-semibold text-gray-900">{streak.current_streak}</div>
-              <div className="mt-1 text-sm text-gray-600">Current</div>
-            </div>
-            <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
-              <div className="text-xs text-gray-600">Best</div>
-              <div className="text-lg font-semibold text-gray-900">{streak.best_streak}</div>
-            </div>
-          </Card>
-
-          {summary ? (
-            <Card className="lg:col-span-2">
-              <h2 className="text-sm font-medium text-gray-500">Summary</h2>
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                  <div className="text-xs text-gray-600">Total cards</div>
-                  <div className="text-xl font-semibold text-gray-900">{summary.total_cards}</div>
-                </div>
-                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                  <div className="text-xs text-gray-600">Strong memory</div>
-                  <div className="text-xl font-semibold text-gray-900">{summary.total_mastered}</div>
-                </div>
-                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                  <div className="text-xs text-gray-600">Medium memory</div>
-                  <div className="text-xl font-semibold text-gray-900">{summary.total_learning}</div>
-                </div>
-                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                  <div className="text-xs text-gray-600">Weak memory</div>
-                  <div className="text-xl font-semibold text-gray-900">{summary.total_new}</div>
-                </div>
-              </div>
-            </Card>
-          ) : (
-            <Card className="lg:col-span-2">
-              <h2 className="text-sm font-medium text-gray-500">Summary</h2>
-              <p className="mt-2 text-sm text-gray-600">Not enough data yet.</p>
-            </Card>
-          )}
         </div>
-      ) : null}
-
-      {todayAdded ? (
-        <Card>
-          <h2 className="text-sm font-medium text-gray-500">Today Added</h2>
-          <div className="mt-2 text-3xl font-semibold text-gray-900">{todayAdded.count}</div>
-          <div className="mt-1 text-sm text-gray-600">cards added today</div>
-        </Card>
-      ) : null}
-
-      {monthly ? (
-        <Card>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h2 className="text-sm font-medium text-gray-500">Monthly progress</h2>
-              <div className="mt-1 text-xl font-semibold text-gray-900">
-                {year} - {month}
-              </div>
-            </div>
-
-            <div className="text-xs text-gray-600">
-              Each cell shows number of cards done that day.
-            </div>
-          </div>
-
-          <div className="mt-4">
-            <div className="grid grid-cols-7 gap-2">
-              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-                <div key={d} className="px-1 text-center text-[11px] font-medium text-gray-500">
-                  {d}
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-2 grid grid-cols-7 gap-2">
-              {monthMatrix.map((date, i) => {
-                if (!date) return <div key={`empty-${i}`} className="h-9" />;
-
-                const key = formatDate(date);
-                const count = monthlyMap[key] || 0;
-                const bg = colorForCount(count);
-
-                return (
-                  <div
-                    key={key}
-                    role="img"
-                    aria-label={`${key}: ${count} cards done`}
-                    title={`${key}: ${count} cards`}
-                    className={[
-                      "flex h-9 items-center justify-center rounded-md text-xs font-semibold",
-                      textClassForCount(count),
-                    ].join(" ")}
-                    style={{ background: bg }}
-                  >
-                    {date.getDate()}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-gray-600">
-            <div className="flex items-center gap-2">
-              <span className="inline-block h-3 w-3 rounded" style={{ background: colorForCount(0) }} />
-              0
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="inline-block h-3 w-3 rounded" style={{ background: colorForCount(4) }} />
-              1-4
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="inline-block h-3 w-3 rounded" style={{ background: colorForCount(9) }} />
-              5-9
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="inline-block h-3 w-3 rounded" style={{ background: colorForCount(19) }} />
-              10-19
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="inline-block h-3 w-3 rounded" style={{ background: colorForCount(20) }} />
-              20+
-            </div>
-          </div>
-        </Card>
-      ) : null}
-    </Layout>
+      )}
+    </div>
   );
 }

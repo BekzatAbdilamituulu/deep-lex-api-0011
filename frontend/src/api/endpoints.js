@@ -49,6 +49,7 @@ export const UsersApi = {
       target_language_id: nativeId,
       make_default: true,
     }),
+  updateGoals: (data) => api.put("/api/v1/users/me/goals", data),
 };
 
 export const LanguagesApi = {

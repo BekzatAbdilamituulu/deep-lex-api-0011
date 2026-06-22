@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 import { AuthApi } from "../api/endpoints";
 import { tokens } from "../api/tokens";
+import Button from "../components/Button";
 import GoogleSignInButton from "../components/GoogleSignInButton";
 import { completeSignIn } from "../utils/completeSignIn";
 
@@ -32,75 +33,64 @@ export default function WelcomePage() {
   }
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-3xl px-6 py-10 text-stone-900">
-      <section className="space-y-4 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
-        <h1 className="text-3xl font-bold leading-tight">
-          Remember the words you discover while reading.
-        </h1>
-        <p className="text-base text-stone-700">
-          A calm, focused vocabulary companion for people who learn languages through books.
-        </p>
+    <div className="min-h-screen bg-zinc-50 text-zinc-900">
+      {/* Hero */}
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-zinc-900 via-zinc-800 to-black opacity-95" />
+        <div className="relative mx-auto max-w-3xl px-6 pt-16 pb-20 text-center text-white">
+          <h1 className="text-5xl font-semibold tracking-tighter sm:text-6xl">
+            Remember the words<br />you discover while reading.
+          </h1>
+          <p className="mx-auto mt-4 max-w-md text-lg text-white/80">
+            A calm, focused vocabulary companion for serious language learners.
+          </p>
 
-        <div className="flex flex-wrap gap-3 pt-2">
-          <Link
-            to="/register"
-            className="rounded-xl bg-black px-4 py-2 text-sm font-medium text-white"
-          >
-            Start building your reading vocabulary
-          </Link>
-          <Link
-            to="/login"
-            className="rounded-xl border border-stone-300 px-4 py-2 text-sm font-medium text-stone-800"
-          >
-            Save words from your reading
-          </Link>
+          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <Link to="/register">
+              <Button size="lg" variant="primary" className="w-full sm:w-auto px-8">
+                Get started free
+              </Button>
+            </Link>
+            <Link to="/login">
+              <Button size="lg" variant="secondary" className="w-full sm:w-auto px-8 bg-white/10 text-white border-white/30 hover:bg-white/20">
+                Log in
+              </Button>
+            </Link>
+          </div>
+
+          <div className="mt-6">
+            <GoogleSignInButton
+              disabled={busy}
+              onCredential={onGoogleCredential}
+              onError={setError}
+            />
+          </div>
+
+          {error && (
+            <div className="mt-4 text-sm text-red-300">{error}</div>
+          )}
+        </div>
+      </div>
+
+      {/* Feature highlights */}
+      <div className="mx-auto max-w-3xl px-6 py-12">
+        <div className="grid gap-6 sm:grid-cols-3">
+          {[
+            { title: "Capture in context", desc: "Save words with the exact sentence from your book." },
+            { title: "Review at your pace", desc: "Simple spaced repetition focused on what you read." },
+            { title: "Organize by source", desc: "Build your personal vocabulary library by book or article." },
+          ].map((f, i) => (
+            <div key={i} className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+              <div className="font-semibold text-lg">{f.title}</div>
+              <p className="mt-2 text-sm text-zinc-600">{f.desc}</p>
+            </div>
+          ))}
         </div>
 
-        <div className="pt-2">
-          <GoogleSignInButton
-            disabled={busy}
-            onCredential={onGoogleCredential}
-            onError={setError}
-          />
+        <div className="mt-10 text-center text-sm text-zinc-500">
+          Built for readers. No distractions. Just better recall.
         </div>
-
-        {error ? (
-          <pre className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">{error}</pre>
-        ) : null}
-      </section>
-
-      <section className="mt-6 grid gap-4 sm:grid-cols-2">
-        <article className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold">Why reading learners struggle</h2>
-          <ul className="mt-3 space-y-2 text-sm text-stone-700">
-            <li>New words are easy to forget.</li>
-            <li>Notes get scattered across books and apps.</li>
-            <li>Dictionary lookups interrupt reading flow.</li>
-            <li>Meaning is lost without the original sentence.</li>
-          </ul>
-        </article>
-
-        <article className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold">A focused solution</h2>
-          <ul className="mt-3 space-y-2 text-sm text-stone-700">
-            <li>Capture vocabulary in seconds.</li>
-            <li>Keep the sentence where you found it.</li>
-            <li>Review with focus and at your own pace.</li>
-            <li>Build a personal, intellectual dictionary by source.</li>
-          </ul>
-        </article>
-      </section>
-
-      <section className="mt-6 rounded-2xl border border-stone-200 bg-white p-5 text-sm text-stone-700 shadow-sm">
-        <p>
-          Learn at your pace. Grow your vocabulary gradually. A quiet tool for deep learners.
-        </p>
-        <div className="mt-4">
-          <Link to="/register" className="font-medium underline">
-            Create your personal book vocabulary
-          </Link>
-        </div>
-      </section>
+      </div>
     </div>
   );
 }
