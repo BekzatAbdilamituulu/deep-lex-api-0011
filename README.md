@@ -12,6 +12,10 @@ Live site:
 
 This README reflects the current project after the latest source/study/dashboard refactor pass.
 
+## Screenshots
+
+<image-card alt="Dashboard" src="frontend/public/1.png" ></image-card>
+
 ## Repository Structure
 
 - `backend/`
