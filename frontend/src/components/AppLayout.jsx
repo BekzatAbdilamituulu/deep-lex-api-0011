@@ -7,7 +7,7 @@ import BottomNavigation from "./BottomNavigation";
 
 const navItems = [
   { to: "/app", end: true, icon: Home, label: "Dashboard" },
-  { to: "/app/decks", icon: BookOpen, label: "Sources" },
+  { to: "/app/decks", icon: BookOpen, label: "Decks" },
   { to: "/app/study", icon: PlayCircle, label: "Study" },
   { to: "/app/library", icon: Library, label: "Library" },
   { to: "/app/progress", icon: BarChart3, label: "Progress" },
@@ -94,7 +94,7 @@ export default function AppLayout() {
         items={[
           { to: "/app", end: true, icon: Home, label: "Home" },
           { to: "/app/study", icon: PlayCircle, label: "Study" },
-          { to: "/app/decks", icon: BookOpen, label: "Sources" },
+          { to: "/app/decks", icon: BookOpen, label: "Decks" },
           { to: "/app/library", icon: Library, label: "Library" },
           { to: "/app/profile", icon: User, label: "Me" },
         ]}
