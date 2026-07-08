@@ -387,9 +387,9 @@ def test_update_reading_source_is_owner_scoped(client):
     assert forbidden.status_code == 404, forbidden.text
 
 
-def test_delete_reading_source_blocks_when_cards_reference_it(client):
+def test_delete_reading_source_detaches_cards_that_reference_it(client):
     _, admin_token = create_user_and_token(client, "admin")
-    _, token = create_user_and_token(client, "reader_delete_blocked")
+    _, token = create_user_and_token(client, "reader_delete_detaches")
 
     en_id = admin_create_language(client, admin_token, "English", "en")
     ru_id = admin_create_language(client, admin_token, "Russian", "ru")
@@ -417,8 +417,21 @@ def test_delete_reading_source_blocks_when_cards_reference_it(client):
         f"/api/v1/reading-sources/{source['id']}",
         headers=auth_headers(token),
     )
-    assert deleted.status_code == 409, deleted.text
-    assert "reference" in deleted.json()["detail"].lower()
+    assert deleted.status_code == 204, deleted.text
+
+    cards = client.get(
+        f"/api/v1/decks/{deck_id}/cards",
+        headers=auth_headers(token),
+    )
+    assert cards.status_code == 200, cards.text
+    detached = next(item for item in cards.json()["items"] if item["front"] == "abate")
+    assert detached["reading_source_id"] is None
+
+    missing = client.get(
+        f"/api/v1/reading-sources/{source['id']}",
+        headers=auth_headers(token),
+    )
+    assert missing.status_code == 404, missing.text
 
 
 def test_delete_reading_source_succeeds_when_unused(client):

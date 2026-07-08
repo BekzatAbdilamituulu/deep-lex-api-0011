@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { LanguagesApi, ProgressApi, ReadingSourcesApi } from "../api/endpoints";
+import { DecksApi, LanguagesApi, ProgressApi } from "../api/endpoints";
 import Button from "../components/Button";
 import Card from "../components/Card";
 import Input from "../components/Input";
@@ -13,54 +13,32 @@ function extractError(e) {
   return e?.message ?? "Request failed";
 }
 
-function extractDeleteError(e) {
-  const detail = String(e?.response?.data?.detail || e?.message || "").toLowerCase();
-  if (detail.includes("cards still reference it")) {
-    return "This source can't be deleted because saved words still reference it. Delete or move those words first.";
-  }
-  return extractError(e);
-}
-
 function langLabel(l) {
   if (!l) return "?";
   return `${l.name}${l.code ? ` (${l.code})` : ""}`;
 }
 
-function normalizeSourceStats(source) {
-  return {
-    ...source,
-    total_cards: Number(source?.total_cards ?? source?.cards_count ?? source?.word_count ?? 0),
-    due_cards: Number(source?.due_cards ?? source?.due_count ?? 0),
-  };
+function deckTypeLabel(deck) {
+  const type = String(deck?.deck_type || "deck").toLowerCase();
+  return type === "users" ? "deck" : type;
 }
 
-export default function SourcesPage() {
+export default function DecksPage() {
   const nav = useNavigate();
   const { activePair, loading: activePairLoading } = useActivePair();
 
-  const [sourcesPage, setSourcesPage] = useState(null);
+  const [decksPage, setDecksPage] = useState(null);
   const [languages, setLanguages] = useState([]);
+  const [progressByDeck, setProgressByDeck] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
-  const [title, setTitle] = useState("");
-  const [author, setAuthor] = useState("");
-  const [kind, setKind] = useState("");
-  const [reference, setReference] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [editingSourceId, setEditingSourceId] = useState(null);
-  const [editTitle, setEditTitle] = useState("");
-  const [editAuthor, setEditAuthor] = useState("");
-  const [editKind, setEditKind] = useState("");
-  const [editReference, setEditReference] = useState("");
-  const [savingSourceId, setSavingSourceId] = useState(null);
-  const [deletingSourceId, setDeletingSourceId] = useState(null);
-
-  // Polish: local search/filter + modal CRUD + feedback
   const [search, setSearch] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [toast, setToast] = useState(null); // simple feedback {message, type}
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState("");
+  const [sourceType, setSourceType] = useState("book");
+  const [authorName, setAuthorName] = useState("");
+  const [toast, setToast] = useState(null);
 
   const langById = useMemo(() => {
     const m = new Map();
@@ -73,26 +51,35 @@ export default function SourcesPage() {
 
   async function load() {
     if (!activePair?.id) {
-      setSourcesPage({ items: [], meta: { total: 0, has_more: false, offset: 0, limit: 50 } });
+      setDecksPage({ items: [], meta: { total: 0, has_more: false, offset: 0, limit: 200 } });
+      setProgressByDeck({});
       setLoading(false);
       return;
     }
 
     setLoading(true);
     setError("");
-
     try {
-      const [sourcesRes, langsRes] = await Promise.all([
-        ReadingSourcesApi.list({ pair_id: activePair.id, include_stats: true, limit: 200, offset: 0 }),
+      const [decksRes, langsRes] = await Promise.all([
+        DecksApi.list(200, 0, { pair_id: activePair.id }),
         LanguagesApi.list(),
       ]);
-      const payload = sourcesRes.data ?? { items: [] };
-      const items = Array.isArray(payload?.items) ? payload.items.map(normalizeSourceStats) : [];
-      setSourcesPage({
-        ...payload,
-        items,
-      });
+      const payload = decksRes.data ?? { items: [] };
+      const decks = Array.isArray(payload?.items) ? payload.items : [];
+      setDecksPage({ ...payload, items: decks });
       setLanguages(langsRes.data ?? []);
+
+      const progressPairs = await Promise.all(
+        decks.map(async (deck) => {
+          try {
+            const res = await ProgressApi.summary({ pair_id: activePair.id, deck_id: deck.id });
+            return [deck.id, res.data];
+          } catch {
+            return [deck.id, null];
+          }
+        })
+      );
+      setProgressByDeck(Object.fromEntries(progressPairs));
     } catch (e) {
       setError(extractError(e));
     } finally {
@@ -100,114 +87,30 @@ export default function SourcesPage() {
     }
   }
 
-  async function createSource(e) {
+  async function createDeck(e) {
     e.preventDefault();
-    if (!activePair?.id) {
-      setError("Select an active learning pair before creating a source.");
-      return;
-    }
-    if (!title.trim()) return;
-
-    const newSource = {
-      id: `temp-${Date.now()}`,
-      title: title.trim(),
-      author: author.trim() || null,
-      kind: kind.trim() || null,
-      reference: reference.trim() || null,
-      total_cards: 0,
-      due_cards: 0,
-    };
-
-    // Optimistic add
-    const prevSources = sourcesPage?.items || [];
-    setSourcesPage({ ...(sourcesPage || {}), items: [...prevSources, newSource] });
+    if (!activePair?.id || !name.trim()) return;
 
     setCreating(true);
     setError("");
     try {
-      await ReadingSourcesApi.create({
+      await DecksApi.create({
         pair_id: activePair.id,
-        title: title.trim(),
-        author: author.trim() ? author.trim() : null,
-        kind: kind.trim() ? kind.trim() : null,
-        reference: reference.trim() ? reference.trim() : null,
+        name: name.trim(),
+        source_type: sourceType.trim() || null,
+        author_name: authorName.trim() || null,
       });
       setShowCreateModal(false);
-      setTitle(""); setAuthor(""); setKind(""); setReference("");
-      setToast({ message: "Source created", type: "success" });
+      setName("");
+      setSourceType("book");
+      setAuthorName("");
+      setToast({ message: "Deck created", type: "success" });
       setTimeout(() => setToast(null), 2500);
       await load();
     } catch (e) {
-      // revert optimistic
-      setSourcesPage({ ...(sourcesPage || {}), items: prevSources });
       setError(extractError(e));
     } finally {
       setCreating(false);
-    }
-  }
-
-  function startEditSource(source) {
-    setEditingSourceId(source.id);
-    setEditTitle(source.title ?? "");
-    setEditAuthor(source.author ?? "");
-    setEditKind(source.kind ?? "");
-    setEditReference(source.reference ?? "");
-    setError("");
-    setShowEditModal(true);
-  }
-
-  function cancelEditSource() {
-    setEditingSourceId(null);
-    setEditTitle("");
-    setEditAuthor("");
-    setEditKind("");
-    setEditReference("");
-    setShowEditModal(false);
-  }
-
-  async function saveSource(sourceId) {
-    if (!editTitle.trim()) return;
-
-    setSavingSourceId(sourceId);
-    setError("");
-    // Optimistic update
-    const prevItems = (sourcesPage?.items || []).map(s => s.id === sourceId ? { ...s, title: editTitle.trim(), author: editAuthor.trim() || null, kind: editKind.trim() || null, reference: editReference.trim() || null } : s);
-    setSourcesPage({ ...(sourcesPage || {}), items: prevItems });
-
-    try {
-      await ReadingSourcesApi.update(sourceId, {
-        title: editTitle.trim(),
-        author: editAuthor.trim() ? editAuthor.trim() : null,
-        kind: editKind.trim() ? editKind.trim() : null,
-        reference: editReference.trim() ? editReference.trim() : null,
-      });
-      cancelEditSource();
-      setToast({ message: "Source updated", type: "success" });
-      setTimeout(() => setToast(null), 2000);
-      await load();
-    } catch (e) {
-      setError(extractError(e));
-      // reload to revert
-      await load();
-    } finally {
-      setSavingSourceId(null);
-    }
-  }
-
-  async function deleteSource(source) {
-    const ok = window.confirm(`Delete "${source.title}"?`);
-    if (!ok) return;
-
-    setDeletingSourceId(source.id);
-    setError("");
-    try {
-      await ReadingSourcesApi.delete(source.id);
-      if (editingSourceId === source.id) cancelEditSource();
-      await load();
-    } catch (e) {
-      setError(extractDeleteError(e));
-    } finally {
-      setDeletingSourceId(null);
     }
   }
 
@@ -220,24 +123,23 @@ export default function SourcesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePair?.id, activePairLoading]);
 
-  const allSources = sourcesPage?.items ?? [];
-  const filteredSources = useMemo(() => {
+  const filteredDecks = useMemo(() => {
+    const decks = decksPage?.items ?? [];
     const q = search.trim().toLowerCase();
-    if (!q) return allSources;
-    return allSources.filter((s) =>
-      (s.title || "").toLowerCase().includes(q) ||
-      (s.author || "").toLowerCase().includes(q) ||
-      (s.kind || "").toLowerCase().includes(q) ||
-      (s.reference || "").toLowerCase().includes(q)
+    if (!q) return decks;
+    return decks.filter((deck) =>
+      (deck.name || "").toLowerCase().includes(q) ||
+      (deck.source_type || "").toLowerCase().includes(q) ||
+      (deck.author_name || "").toLowerCase().includes(q)
     );
-  }, [allSources, search]);
+  }, [decksPage, search]);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Books & Sources</h1>
-          <p className="mt-1 text-sm text-gray-500">Organize saved words by the text where you found them.</p>
+          <h1 className="text-2xl font-bold">Decks</h1>
+          <p className="mt-1 text-sm text-gray-500">Build flashcards from books, articles, or any vocabulary list.</p>
           {activePair ? (
             <p className="mt-2 text-sm text-gray-700">
               Active pair: <span className="font-semibold">{langLabel(activeLearning)}</span> →{" "}
@@ -246,168 +148,63 @@ export default function SourcesPage() {
           ) : null}
         </div>
         <div className="flex gap-2">
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search sources..."
-            className="w-48"
-          />
-          <Button onClick={() => setShowCreateModal(true)} disabled={!activePair}>+ Add Source</Button>
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search decks..." className="w-48" />
+          <Button onClick={() => setShowCreateModal(true)} disabled={!activePair}>+ Add Deck</Button>
         </div>
       </div>
 
-      {/* Toast */}
-      {toast && (
-        <div className={`rounded-xl px-4 py-2 text-sm ${toast.type === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700"}`}>
-          {toast.message}
-        </div>
-      )}
+      {toast ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700">{toast.message}</div> : null}
 
-      {/* Create Modal */}
-      {showCreateModal && (
+      {showCreateModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => !creating && setShowCreateModal(false)}>
-          <div className="w-full max-w-md rounded-3xl bg-white p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold mb-4">Add New Source</h3>
-            <form onSubmit={createSource} className="grid gap-4">
-              <label className="grid gap-1.5">
-                <span className="text-sm text-gray-700">Title *</span>
-                <Input value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="Book or article title" />
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <label className="grid gap-1.5">
-                  <span className="text-sm text-gray-700">Author</span>
-                  <Input value={author} onChange={(e) => setAuthor(e.target.value)} />
-                </label>
-                <label className="grid gap-1.5">
-                  <span className="text-sm text-gray-700">Kind</span>
-                  <Input value={kind} onChange={(e) => setKind(e.target.value)} placeholder="book, article, essay" />
-                </label>
+          <div className="w-full max-w-md rounded-3xl bg-white p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="mb-4 text-lg font-semibold">Add New Deck</h3>
+            <form onSubmit={createDeck} className="grid gap-4">
+              <label className="grid gap-1.5"><span className="text-sm text-gray-700">Deck name *</span><Input value={name} onChange={(e) => setName(e.target.value)} required placeholder="The Trial vocabulary" /></label>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <label className="grid gap-1.5"><span className="text-sm text-gray-700">Source type</span><Input value={sourceType} onChange={(e) => setSourceType(e.target.value)} placeholder="book, article, list" /></label>
+                <label className="grid gap-1.5"><span className="text-sm text-gray-700">Author</span><Input value={authorName} onChange={(e) => setAuthorName(e.target.value)} /></label>
               </div>
-              <label className="grid gap-1.5">
-                <span className="text-sm text-gray-700">Reference</span>
-                <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Chapter, page, URL" />
-              </label>
-
               <div className="flex gap-3 pt-2">
-                <Button type="submit" disabled={creating || !title.trim()} className="flex-1">
-                  {creating ? "Creating..." : "Create Source"}
-                </Button>
-                <Button type="button" variant="secondary" onClick={() => setShowCreateModal(false)} disabled={creating} className="flex-1">
-                  Cancel
-                </Button>
+                <Button type="submit" disabled={creating || !name.trim()} className="flex-1">{creating ? "Creating..." : "Create Deck"}</Button>
+                <Button type="button" variant="secondary" onClick={() => setShowCreateModal(false)} disabled={creating} className="flex-1">Cancel</Button>
               </div>
-              {error && <p className="text-sm text-red-600">{error}</p>}
+              {error ? <p className="text-sm text-red-600">{error}</p> : null}
             </form>
           </div>
         </div>
-      )}
-
-      {/* Edit Modal */}
-      {showEditModal && editingSourceId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => !savingSourceId && cancelEditSource()}>
-          <div className="w-full max-w-md rounded-3xl bg-white p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold mb-4">Edit Source</h3>
-            <div className="grid gap-4">
-              <label className="grid gap-1.5">
-                <span className="text-sm text-gray-700">Title *</span>
-                <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <label className="grid gap-1.5">
-                  <span className="text-sm text-gray-700">Author</span>
-                  <Input value={editAuthor} onChange={(e) => setEditAuthor(e.target.value)} />
-                </label>
-                <label className="grid gap-1.5">
-                  <span className="text-sm text-gray-700">Kind</span>
-                  <Input value={editKind} onChange={(e) => setEditKind(e.target.value)} />
-                </label>
-              </div>
-              <label className="grid gap-1.5">
-                <span className="text-sm text-gray-700">Reference</span>
-                <Input value={editReference} onChange={(e) => setEditReference(e.target.value)} />
-              </label>
-
-              <div className="flex gap-3 pt-2">
-                <Button
-                  onClick={() => saveSource(editingSourceId)}
-                  disabled={savingSourceId === editingSourceId || !editTitle.trim()}
-                  className="flex-1"
-                >
-                  {savingSourceId === editingSourceId ? "Saving..." : "Save Changes"}
-                </Button>
-                <Button variant="secondary" onClick={cancelEditSource} disabled={savingSourceId === editingSourceId} className="flex-1">
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {error && !showCreateModal ? (
-        <pre className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">{error}</pre>
       ) : null}
 
+      {error && !showCreateModal ? <pre className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">{error}</pre> : null}
+
       {loading || activePairLoading ? (
-        <p className="text-sm text-gray-500">Loading sources...</p>
+        <p className="text-sm text-gray-500">Loading decks...</p>
       ) : !activePair ? (
-        <Card>
-          <p className="text-sm text-gray-600">Select an active pair to view sources.</p>
-        </Card>
-      ) : filteredSources.length === 0 ? (
-        <Card>
-          <p className="text-sm text-gray-600">{search ? "No sources match your search." : "No sources yet. Add your first book or text source."}</p>
-        </Card>
+        <Card><p className="text-sm text-gray-600">Select an active pair to view decks.</p></Card>
+      ) : filteredDecks.length === 0 ? (
+        <Card><p className="text-sm text-gray-600">{search ? "No decks match your search." : "No decks yet. Add your first deck."}</p></Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {filteredSources.map((source) => {
-            const lang = source.language || null;
+          {filteredDecks.map((deck) => {
+            const stats = progressByDeck[deck.id];
             return (
-              <Card
-                key={source.id}
-                className="cursor-pointer transition-all hover:shadow-lg border-zinc-200 active:scale-[0.985]"
-                onClick={() => nav(`/app/sources/${source.id}`)}
-              >
-                <div className="space-y-1">
-                  <div className="flex justify-between items-start gap-2">
-                    <h3 className="text-lg font-semibold tracking-tight pr-2 line-clamp-2">{source.title}</h3>
-                    <span className="shrink-0 rounded-full bg-zinc-100 px-2.5 py-0.5 text-[10px] font-medium text-zinc-600 whitespace-nowrap">
-                      {source.kind || "text"}
-                    </span>
+              <Card key={deck.id} className="cursor-pointer border-zinc-200 transition-all hover:shadow-lg active:scale-[0.985]" onClick={() => nav(`/app/decks/${deck.id}`)}>
+                <div className="space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="pr-2 text-lg font-semibold tracking-tight line-clamp-2">{deck.name}</h3>
+                    <span className="shrink-0 rounded-full bg-zinc-100 px-2.5 py-0.5 text-[10px] font-medium text-zinc-600">{deck.source_type || deckTypeLabel(deck)}</span>
                   </div>
-                  {source.author && (
-                    <p className="text-sm text-zinc-600">{source.author}</p>
-                  )}
-                  {source.reference && <p className="text-xs text-gray-500">{source.reference}</p>}
-                  <div className="flex items-center gap-3 pt-1 text-sm">
-                    <span>Words: <span className="font-semibold">{source.total_cards ?? 0}</span></span>
-                    <span className="text-amber-600">Due: <span className="font-semibold">{source.due_cards ?? 0}</span></span>
+                  {deck.author_name ? <p className="text-sm text-zinc-600">{deck.author_name}</p> : null}
+                  <div className="grid grid-cols-2 gap-2 pt-2 text-sm">
+                    <span>Total: <span className="font-semibold">{stats?.total_cards ?? "-"}</span></span>
+                    <span className="text-amber-600">Due: <span className="font-semibold">{stats?.due_count ?? "-"}</span></span>
+                    <span className="text-emerald-600">Mastered: <span className="font-semibold">{stats?.total_mastered ?? "-"}</span></span>
+                    <span>New: <span className="font-semibold">{stats?.total_new ?? "-"}</span></span>
                   </div>
-                  {source.last_added_at && (
-                    <p className="text-[10px] text-gray-500">Last: {new Date(source.last_added_at).toLocaleDateString()}</p>
-                  )}
                 </div>
-
-                <div className="mt-4 flex flex-wrap gap-2" onClick={e => e.stopPropagation()}>
-                  <Button variant="primary" size="sm" onClick={() => nav(`/app/sources/${source.id}`)}>
-                    View
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => startEditSource(source)}
-                    disabled={deletingSourceId != null || savingSourceId != null}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={() => deleteSource(source)}
-                    disabled={deletingSourceId === source.id || savingSourceId != null}
-                  >
-                    {deletingSourceId === source.id ? "..." : "Delete"}
-                  </Button>
+                <div className="mt-4 flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
+                  <Button variant="primary" size="sm" onClick={() => nav(`/app/decks/${deck.id}`)}>Open</Button>
+                  <Button variant="secondary" size="sm" onClick={() => nav(`/app/study/${deck.id}`)}>Study</Button>
                 </div>
               </Card>
             );

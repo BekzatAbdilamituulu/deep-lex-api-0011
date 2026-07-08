@@ -66,15 +66,13 @@ def update_reading_source(
 def delete_reading_source(db: Session, *, user_id: int, source_id: int) -> None:
     source = get_reading_source(db, user_id=user_id, source_id=source_id)
 
-    has_cards = (
-        db.query(models.Card.id)
-        .filter(models.Card.reading_source_id == source.id)
-        .first()
-        is not None
+    # Reading sources are optional legacy metadata on cards. Deleting a source
+    # should not make existing flashcards unusable or cause the API to return a
+    # conflict: keep the cards and simply detach their nullable source link.
+    db.query(models.Card).filter(models.Card.reading_source_id == source.id).update(
+        {models.Card.reading_source_id: None},
+        synchronize_session=False,
     )
-    if has_cards:
-        raise ValueError("Cannot delete reading source while cards still reference it")
-
     db.delete(source)
 
 

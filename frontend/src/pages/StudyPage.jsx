@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { DecksApi, ReadingSourcesApi, StudyApi } from "../api/endpoints";
+import { DecksApi, StudyApi } from "../api/endpoints";
 import { useActivePair } from "../context/ActivePairContext";
-import { memoryStrengthFromCard } from "../utils/memoryStrength";
 import Button from "../components/Button";
 import ProgressBar from "../components/ProgressBar";
 

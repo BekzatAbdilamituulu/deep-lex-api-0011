@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
-  AutoApi, CardsApi, DecksApi, LanguagesApi, ProgressApi, ReadingSourcesApi 
+  AutoApi, CardsApi, DecksApi, LanguagesApi, ProgressApi
 } from "../api/endpoints";
 import { useActivePair } from "../context/ActivePairContext";
 import Button from "../components/Button";
@@ -31,8 +31,6 @@ export default function DashboardPage() {
   const [error, setError] = useState("");
   const [langs, setLangs] = useState([]);
   const [mainDeckCards, setMainDeckCards] = useState([]);
-  const [readingSources, setReadingSources] = useState([]);
-  const [currentSourceId, setCurrentSourceId] = useState(null);
 
   // Quick add
   const [addOpen, setAddOpen] = useState(false);
@@ -60,16 +58,13 @@ export default function DashboardPage() {
     setError("");
 
     try {
-      const [langsRes, decksRes, sourcesRes] = await Promise.all([
+      const [langsRes, decksRes] = await Promise.all([
         LanguagesApi.list(),
         DecksApi.list(200, 0, { pair_id: activePair.id }),
-        ReadingSourcesApi.list({ pair_id: activePair.id, include_stats: true, limit: 50, offset: 0 }),
       ]);
 
       setLangs(langsRes.data ?? []);
       const decks = decksRes.data?.items ?? [];
-      const sources = sourcesRes.data?.items ?? [];
-      setReadingSources(sources);
 
       const mainDecks = decks.filter(isMainDeck);
       const summaries = await Promise.all(
@@ -131,7 +126,6 @@ export default function DashboardPage() {
 
   const primaryDeck = mainDeckCards[0] ?? null;
   const summary = primaryDeck?.summary || {};
-  const totalCards = summary.total_cards ?? 0;
   const totalNew = summary.total_new ?? 0;
   const totalLearning = summary.total_learning ?? 0;
   const totalMastered = summary.total_mastered ?? 0;
@@ -142,7 +136,6 @@ export default function DashboardPage() {
   // Demo daily goal
   const dailyGoal = 30;
   const todayLearned = Math.min(22, totalNew + 3); // demo
-  const goalPct = Math.round((todayLearned / dailyGoal) * 100);
 
   const openQuickAdd = () => {
     if (!activePair) {
@@ -228,7 +221,7 @@ export default function DashboardPage() {
         </Card>
         <Card className="text-center py-5 cursor-pointer" onClick={() => primaryDeck && nav(`/app/study/${primaryDeck.deck.id}`)}>
           <div className="text-3xl font-semibold">Start</div>
-          <div className="text-sm text-zinc-500 mt-1">Reading Review →</div>
+          <div className="text-sm text-zinc-500 mt-1">Deck Review →</div>
         </Card>
       </div>
 
@@ -296,28 +289,6 @@ export default function DashboardPage() {
               </div>
               {addMsg && <div className="text-center text-sm text-emerald-600">{addMsg}</div>}
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Sources quick access */}
-      {readingSources.length > 0 && (
-        <div>
-          <div className="mb-3 px-1 text-sm font-medium text-zinc-600">Your reading sources</div>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            {readingSources.slice(0, 4).map((src) => (
-              <Card 
-                key={src.id} 
-                className="cursor-pointer hover:border-zinc-300 active:scale-[0.985] transition"
-                onClick={() => primaryDeck && nav(`/app/study/${primaryDeck.deck.id}?sourceId=${src.id}`)}
-              >
-                <div className="font-semibold">{src.title}</div>
-                <div className="text-xs text-zinc-500 mt-0.5">{src.author || "—"}</div>
-                <div className="mt-3 text-sm">
-                  {src.due_cards || 0} due • {src.total_cards || 0} words
-                </div>
-              </Card>
-            ))}
           </div>
         </div>
       )}
