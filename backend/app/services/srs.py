@@ -160,7 +160,6 @@ def build_next_batch(
     new_ratio: float = 0.3,
     max_new_per_day: int = 10,
     max_reviews_per_day: int = 100,
-    reading_source_id: int | None = None,
 ):
     # clamp
     limit = max(1, min(int(limit), 20))
@@ -181,7 +180,6 @@ def build_next_batch(
         user_id,
         limit=min(limit, remaining_review_quota),
         offset=0,
-        reading_source_id=reading_source_id,
     )
 
     remaining = max(0, limit - len(review_cards))
@@ -194,7 +192,6 @@ def build_next_batch(
         [c.id for c in review_cards],
         limit=new_limit,
         offset=0,
-        reading_source_id=reading_source_id,
     )
 
     cards = review_cards + new_cards
@@ -205,19 +202,17 @@ def build_next_batch(
 
     meta = {
         "deck_id": deck_id,
-        "reading_source_id": reading_source_id,
-        "due_count": crud.count_due_reviews(db, user_id, deck_id, reading_source_id=reading_source_id),
-        "new_available_count": crud.count_new_available(db, user_id, deck_id, reading_source_id=reading_source_id),
+        "due_count": crud.count_due_reviews(db, user_id, deck_id),
+        "new_available_count": crud.count_new_available(db, user_id, deck_id),
         "reviewed_today": reviewed_today,
         "new_introduced_today": new_today,
         "remaining_review_quota": remaining_review_quota,
         "remaining_new_quota": remaining_new_quota,
-        "next_due_at": crud.get_next_due_at(db, user_id, deck_id, reading_source_id=reading_source_id),
+        "next_due_at": crud.get_next_due_at(db, user_id, deck_id),
     }
 
     return {
         "deck_id": deck_id,
-        "reading_source_id": reading_source_id,
         "count": len(cards),
         "cards": cards,
         "items": items,
@@ -232,21 +227,19 @@ def build_study_status(
     deck_id: int,
     max_new_per_day: int = 10,
     max_reviews_per_day: int = 100,
-    reading_source_id: int | None = None,
 ):
     reviewed_today = crud.count_reviewed_today(db, user_id, deck_id)
     new_today = crud.count_new_introduced_today(db, user_id, deck_id)
 
-    due_count = crud.count_due_reviews(db, user_id, deck_id, reading_source_id=reading_source_id)
-    new_available_count = crud.count_new_available(db, user_id, deck_id, reading_source_id=reading_source_id)
-    next_due_at = crud.get_next_due_at(db, user_id, deck_id, reading_source_id=reading_source_id)
+    due_count = crud.count_due_reviews(db, user_id, deck_id)
+    new_available_count = crud.count_new_available(db, user_id, deck_id)
+    next_due_at = crud.get_next_due_at(db, user_id, deck_id)
 
     remaining_review_quota = max(0, max_reviews_per_day - reviewed_today)
     remaining_new_quota = max(0, max_new_per_day - new_today)
 
     return {
         "deck_id": deck_id,
-        "reading_source_id": reading_source_id,
         "due_count": due_count,
         "new_available_count": new_available_count,
         "reviewed_today": reviewed_today,

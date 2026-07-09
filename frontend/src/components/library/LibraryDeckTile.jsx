@@ -25,7 +25,7 @@ export default function LibraryDeckTile({ deck, onClick }) {
         {deck?.cover_image_url ? (
           <img
             src={deck.cover_image_url}
-            alt={deck.name || "Library source"}
+            alt={deck.name || "Library collection"}
             className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
           />
         ) : (

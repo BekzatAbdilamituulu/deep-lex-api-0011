@@ -48,7 +48,6 @@ def library_deck_cards(
     deck_id: int,
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
-    reading_source_id: int | None = Query(default=None, ge=1),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -59,7 +58,6 @@ def library_deck_cards(
             deck_id=deck_id,
             limit=limit,
             offset=offset,
-            reading_source_id=reading_source_id,
         )
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))

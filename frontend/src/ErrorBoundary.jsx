@@ -9,7 +9,7 @@ export default class ErrorBoundary extends React.Component {
     return { err };
   }
   componentDidCatch(err, info) {
-    console.error("Cortex UI error:", err, info);
+    console.error("DeepLex UI error:", err, info);
   }
   render() {
     if (this.state.err) {

@@ -384,7 +384,6 @@ def list_library_deck_cards(
     limit: int,
     offset: int,
     *,
-    reading_source_id: int | None = None,
     user_id: int | None = None,
 ):
     deck = (
@@ -395,43 +394,11 @@ def list_library_deck_cards(
     if not deck:
         return [], 0
 
-    if reading_source_id is not None:
-        if user_id is None:
-            raise ValueError("user_id is required for reading_source filter")
-        source = (
-            db.query(models.ReadingSource)
-            .filter(
-                models.ReadingSource.id == reading_source_id,
-                models.ReadingSource.user_id == user_id,
-            )
-            .first()
-        )
-        if not source:
-            raise LookupError("Reading source not found")
-        pair = (
-            db.query(models.UserLearningPair)
-            .filter(
-                models.UserLearningPair.id == source.pair_id,
-                models.UserLearningPair.user_id == user_id,
-            )
-            .first()
-        )
-        if not pair:
-            raise LookupError("Reading source not found")
-        if (
-            pair.source_language_id != deck.source_language_id
-            or pair.target_language_id != deck.target_language_id
-        ):
-            raise ValueError("Reading source pair does not match deck pair")
-
     base_q = (
         db.query(models.Card)
-        .options(joinedload(models.Card.reading_source))
         .filter(models.Card.deck_id == deck_id)
         .order_by(models.Card.id.asc())
     )
-    if reading_source_id is not None:
-        base_q = base_q.filter(models.Card.reading_source_id == reading_source_id)
 
     total = base_q.count()
     items = base_q.offset(offset).limit(limit).all()
@@ -493,11 +460,7 @@ def import_library_card_to_user_deck(
         back=lib_card.back,
         example_sentence=lib_card.example_sentence,
         content_kind=lib_card.content_kind,
-        source_title=lib_card.source_title,
-        source_author=lib_card.source_author,
-        source_reference=lib_card.source_reference,
-        source_sentence=lib_card.source_sentence,
-        source_page=lib_card.source_page,
+        context_sentence=lib_card.context_sentence,
         context_note=lib_card.context_note,
     )
     db.add(new_card)
@@ -745,47 +708,6 @@ def normalize_front(text: str) -> str:
 from app.services import auto_content
 
 
-def _resolve_reading_source_for_deck(
-    db: Session,
-    *,
-    user_id: int,
-    deck: models.Deck,
-    reading_source_id: int | None,
-) -> models.ReadingSource | None:
-    if reading_source_id is None:
-        return None
-
-    source = (
-        db.query(models.ReadingSource)
-        .filter(
-            models.ReadingSource.id == reading_source_id,
-            models.ReadingSource.user_id == user_id,
-        )
-        .first()
-    )
-    if not source:
-        raise LookupError("Reading source not found")
-
-    pair = (
-        db.query(models.UserLearningPair)
-        .filter(
-            models.UserLearningPair.id == source.pair_id,
-            models.UserLearningPair.user_id == user_id,
-        )
-        .first()
-    )
-    if not pair:
-        raise LookupError("Reading source not found")
-
-    if (
-        pair.source_language_id != deck.source_language_id
-        or pair.target_language_id != deck.target_language_id
-    ):
-        raise ValueError("Reading source pair does not match deck pair")
-
-    return source
-
-
 def create_card(
     db: Session,
     deck_id: int,
@@ -794,13 +716,7 @@ def create_card(
     back: str,
     example_sentence: Optional[str] = None,
     content_kind: str | models.ContentKind | schemas.ContentKind | None = None,
-    reading_source_id: Optional[int] = None,
-    source_title: Optional[str] = None,
-    source_author: Optional[str] = None,
-    source_kind: Optional[str] = None,
-    source_reference: Optional[str] = None,
-    source_sentence: Optional[str] = None,
-    source_page: Optional[str] = None,
+    context_sentence: Optional[str] = None,
     context_note: Optional[str] = None,
     *,
     auto_fill: bool = True,
@@ -815,33 +731,6 @@ def create_card(
 
     if deck.deck_type == models.DeckType.LIBRARY and not is_admin:
         raise PermissionError("Library decks are read only")
-    reading_source = _resolve_reading_source_for_deck(
-        db,
-        user_id=user_id,
-        deck=deck,
-        reading_source_id=reading_source_id,
-    )
-    if reading_source is None and (source_title or "").strip():
-        from app.services.reading_source_service import resolve_or_create_reading_source
-
-        pair = get_user_learning_pair_by_langs(
-            db,
-            user_id=user_id,
-            source_language_id=deck.source_language_id,
-            target_language_id=deck.target_language_id,
-        )
-        if pair:
-            reading_source = resolve_or_create_reading_source(
-                db,
-                user_id=user_id,
-                pair_id=pair.id,
-                source_title=source_title,
-                source_author=source_author,
-                source_kind=source_kind,
-                source_reference=source_reference,
-                create_if_missing=True,
-            )
-
     front_clean = (front or "").strip()
     if not front_clean:
         raise ValueError("Front is required")
@@ -875,20 +764,9 @@ def create_card(
             )
     back_clean = auto_content.clean_text(back)
     example_clean = auto_content.clean_example(example_sentence)
-    source_title_clean = auto_content.clean_text(source_title)
-    source_author_clean = auto_content.clean_text(source_author)
-    source_reference_clean = auto_content.clean_text(source_reference)
-    source_sentence_clean = auto_content.clean_text(source_sentence)
+    context_sentence_clean = auto_content.clean_text(context_sentence)
     context_note_clean = auto_content.clean_text(context_note)
     content_kind_clean = normalize_content_kind(content_kind)
-    source_page_clean = (source_page or "").strip() or None
-    source_title_final = source_title_clean or (reading_source.title if reading_source else None)
-    source_author_final = source_author_clean or (reading_source.author if reading_source else None)
-    source_reference_final = source_reference_clean or (
-        reading_source.reference if reading_source else None
-    )
-    if source_kind is not None and reading_source is not None:
-        reading_source.kind = auto_content.clean_text(source_kind) or None
     card = models.Card(
         deck_id=deck_id,
         front=front_clean,
@@ -896,12 +774,7 @@ def create_card(
         back=back_clean,
         example_sentence=example_clean,
         content_kind=content_kind_clean,
-        reading_source_id=reading_source.id if reading_source else None,
-        source_title=source_title_final,
-        source_author=source_author_final,
-        source_reference=source_reference_final,
-        source_sentence=source_sentence_clean or None,
-        source_page=source_page_clean,
+        context_sentence=context_sentence_clean or None,
         context_note=context_note_clean or None,
     )
 
@@ -931,13 +804,7 @@ def update_card(
     back: Optional[str] = None,
     example_sentence: Optional[str] = None,
     content_kind: str | models.ContentKind | schemas.ContentKind | None = None,
-    reading_source_id: Optional[int] = None,
-    source_title: Optional[str] = None,
-    source_author: Optional[str] = None,
-    source_kind: Optional[str] = None,
-    source_reference: Optional[str] = None,
-    source_sentence: Optional[str] = None,
-    source_page: Optional[str] = None,
+    context_sentence: Optional[str] = None,
     context_note: Optional[str] = None,
 ) -> models.Card:
     access = require_deck_access(db, user_id, deck_id)
@@ -950,38 +817,6 @@ def update_card(
 
     if deck.deck_type == models.DeckType.LIBRARY and not is_admin:
         raise PermissionError('Library decks are read-only')
-    reading_source = _resolve_reading_source_for_deck(
-        db,
-        user_id=user_id,
-        deck=deck,
-        reading_source_id=reading_source_id,
-    )
-    if (
-        reading_source is None
-        and reading_source_id is None
-        and source_title is not None
-        and source_title.strip()
-    ):
-        from app.services.reading_source_service import resolve_or_create_reading_source
-
-        pair = get_user_learning_pair_by_langs(
-            db,
-            user_id=user_id,
-            source_language_id=deck.source_language_id,
-            target_language_id=deck.target_language_id,
-        )
-        if pair:
-            reading_source = resolve_or_create_reading_source(
-                db,
-                user_id=user_id,
-                pair_id=pair.id,
-                source_title=source_title,
-                source_author=source_author,
-                source_kind=source_kind,
-                source_reference=source_reference,
-                create_if_missing=True,
-            )
-
     card = (
         db.query(models.Card)
         .filter(models.Card.id == card_id, models.Card.deck_id == deck_id)
@@ -1018,28 +853,8 @@ def update_card(
         card.example_sentence = val or None
     if content_kind is not None:
         card.content_kind = normalize_content_kind(content_kind)
-    if reading_source_id is not None:
-        card.reading_source_id = reading_source.id if reading_source else None
-        if not source_title:
-            card.source_title = reading_source.title if reading_source else None
-        if not source_author:
-            card.source_author = reading_source.author if reading_source else None
-        if not source_reference:
-            card.source_reference = reading_source.reference if reading_source else None
-    elif reading_source is not None:
-        card.reading_source_id = reading_source.id
-    if source_title is not None:
-        card.source_title = auto_content.clean_text(source_title) or None
-    if source_author is not None:
-        card.source_author = auto_content.clean_text(source_author) or None
-    if source_kind is not None and reading_source is not None:
-        reading_source.kind = auto_content.clean_text(source_kind) or None
-    if source_reference is not None:
-        card.source_reference = auto_content.clean_text(source_reference) or None
-    if source_sentence is not None:
-        card.source_sentence = auto_content.clean_text(source_sentence) or None
-    if source_page is not None:
-        card.source_page = (source_page or "").strip() or None
+    if context_sentence is not None:
+        card.context_sentence = auto_content.clean_text(context_sentence) or None
     if context_note is not None:
         card.context_note = auto_content.clean_text(context_note) or None
 
@@ -1084,46 +899,14 @@ def list_deck_cards(
     user_id: int,
     limit: int,
     offset: int,
-    reading_source_id: int | None = None,
 ):
-    access = require_deck_access(db, user_id, deck_id)
-    deck = access.deck
-
-    if reading_source_id is not None:
-        source = (
-            db.query(models.ReadingSource)
-            .filter(
-                models.ReadingSource.id == reading_source_id,
-                models.ReadingSource.user_id == user_id,
-            )
-            .first()
-        )
-        if not source:
-            raise LookupError("Reading source not found")
-        pair = (
-            db.query(models.UserLearningPair)
-            .filter(
-                models.UserLearningPair.id == source.pair_id,
-                models.UserLearningPair.user_id == user_id,
-            )
-            .first()
-        )
-        if not pair:
-            raise LookupError("Reading source not found")
-        if (
-            pair.source_language_id != deck.source_language_id
-            or pair.target_language_id != deck.target_language_id
-        ):
-            raise ValueError("Reading source pair does not match deck pair")
+    require_deck_access(db, user_id, deck_id)
 
     base_q = (
         db.query(models.Card)
-        .options(joinedload(models.Card.reading_source))
         .filter(models.Card.deck_id == deck_id)
         .order_by(models.Card.id.asc())
     )
-    if reading_source_id is not None:
-        base_q = base_q.filter(models.Card.reading_source_id == reading_source_id)
 
     total = base_q.count()
     cards = base_q.offset(offset).limit(limit).all()
@@ -1264,7 +1047,6 @@ def get_due_reviews(
     user_id: int,
     limit: int,
     offset: int,
-    reading_source_id: int | None = None,
 ):
     require_deck_access(db, user_id, deck_id)
     now = _utc_now()
@@ -1287,9 +1069,6 @@ def get_due_reviews(
         )
     )
 
-    if reading_source_id is not None:
-        base_q = base_q.filter(models.Card.reading_source_id == reading_source_id)
-
     total = base_q.count()
     items = base_q.offset(offset).limit(limit).all()
 
@@ -1303,7 +1082,6 @@ def get_new_cards(
     exclude_card_ids: list[int] | None,
     limit: int,
     offset: int,
-    reading_source_id: int | None = None,
 ):
     require_deck_access(db, user_id, deck_id)
 
@@ -1335,9 +1113,6 @@ def get_new_cards(
 
     if exclude_card_ids:
         base_q = base_q.filter(models.Card.id.notin_(exclude_card_ids))
-
-    if reading_source_id is not None:
-        base_q = base_q.filter(models.Card.reading_source_id == reading_source_id)
 
     base_q = base_q.order_by(models.Card.id.asc())
 
@@ -1567,7 +1342,6 @@ def count_due_reviews(
     user_id: int,
     deck_id: int | None = None,
     pair_id: int | None = None,
-    reading_source_id: int | None = None,
 ) -> int:
     now = _utc_now()
 
@@ -1604,9 +1378,6 @@ def count_due_reviews(
             models.Deck.target_language_id == pair.target_language_id,
         )
 
-    if reading_source_id is not None:
-        q = q.filter(models.Card.reading_source_id == reading_source_id)
-
     return q.count()
 
 
@@ -1615,7 +1386,6 @@ def count_new_available(
     user_id: int,
     deck_id: int | None = None,
     pair_id: int | None = None,
-    reading_source_id: int | None = None,
 ) -> int:
     now = _utc_now()
 
@@ -1664,9 +1434,6 @@ def count_new_available(
             models.Deck.target_language_id == pair.target_language_id,
         )
 
-    if reading_source_id is not None:
-        q = q.filter(models.Card.reading_source_id == reading_source_id)
-
     return q.count()
 
 
@@ -1675,7 +1442,6 @@ def get_next_due_at(
     user_id: int,
     deck_id: int | None = None,
     pair_id: int | None = None,
-    reading_source_id: int | None = None,
 ):
     q = (
         db.query(func.min(models.UserCardProgress.due_at))
@@ -1708,9 +1474,6 @@ def get_next_due_at(
             models.Deck.source_language_id == pair.source_language_id,
             models.Deck.target_language_id == pair.target_language_id,
         )
-
-    if reading_source_id is not None:
-        q = q.filter(models.Card.reading_source_id == reading_source_id)
 
     return q.scalar()
 

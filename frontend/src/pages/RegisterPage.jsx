@@ -40,7 +40,7 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-zinc-50 px-4 flex items-center justify-center">
       <Card className="w-full max-w-md">
         <h1 className="text-3xl font-semibold tracking-tighter">Create your account</h1>
-        <p className="mt-1 text-sm text-zinc-600">Start building your personal reading vocabulary.</p>
+        <p className="mt-1 text-sm text-zinc-600">Start saving words from your reading.</p>
 
         <form onSubmit={onSubmit} className="mt-8 space-y-5">
           <div>

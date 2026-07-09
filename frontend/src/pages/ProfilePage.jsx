@@ -285,20 +285,20 @@ export default function ProfilePage() {
             )}
           </div>
 
-          {/* Streak summary */}
+          {/* Review rhythm summary */}
           {streak && (
             <div>
-              <h2 className="text-lg font-semibold mb-3 tracking-tight">Streak</h2>
+              <h2 className="text-lg font-semibold mb-3 tracking-tight">Review rhythm</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Card className="text-center">
-                  <div className="text-sm text-zinc-500">Current streak</div>
+                  <div className="text-sm text-zinc-500">Review rhythm</div>
                   <div className="text-6xl font-semibold tracking-tighter mt-1 text-emerald-600 dark:text-emerald-400">
                     {streak.current_streak}
                   </div>
                   <div className="text-xs mt-1">days</div>
                 </Card>
                 <Card className="text-center">
-                  <div className="text-sm text-zinc-500">Best streak</div>
+                  <div className="text-sm text-zinc-500">Best review run</div>
                   <div className="text-6xl font-semibold tracking-tighter mt-1">{streak.best_streak}</div>
                   <div className="text-xs mt-1">days</div>
                 </Card>

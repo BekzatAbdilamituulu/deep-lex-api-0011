@@ -1,13 +1,13 @@
 import { Outlet, NavLink, Link } from "react-router-dom";
 import { 
-  Home, BookOpen, Library, BarChart3, User, PlayCircle 
+  Home, Layers3, Library, BarChart3, User, PlayCircle
 } from "lucide-react";
 import PairSwitcher from "./PairSwitcher";
 import BottomNavigation from "./BottomNavigation";
 
 const navItems = [
   { to: "/app", end: true, icon: Home, label: "Dashboard" },
-  { to: "/app/decks", icon: BookOpen, label: "Sources" },
+  { to: "/app/decks", icon: Layers3, label: "Decks" },
   { to: "/app/study", icon: PlayCircle, label: "Study" },
   { to: "/app/library", icon: Library, label: "Library" },
   { to: "/app/progress", icon: BarChart3, label: "Progress" },
@@ -21,7 +21,7 @@ export default function AppLayout() {
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 md:px-8">
           <div className="flex items-center gap-4">
             <Link to="/app" className="flex items-center gap-2 text-2xl font-semibold tracking-tighter">
-              Cortex
+              DeepLex
             </Link>
             <div className="hidden md:block">
               <PairSwitcher compact />
@@ -76,7 +76,7 @@ export default function AppLayout() {
 
           <div className="mt-auto pt-8">
             <div className="rounded-3xl border bg-zinc-50 p-4 text-xs text-zinc-500">
-              Learning is a journey.
+              No streaks. No noise. Just deep vocabulary memory.
             </div>
           </div>
         </aside>
@@ -94,7 +94,7 @@ export default function AppLayout() {
         items={[
           { to: "/app", end: true, icon: Home, label: "Home" },
           { to: "/app/study", icon: PlayCircle, label: "Study" },
-          { to: "/app/decks", icon: BookOpen, label: "Sources" },
+          { to: "/app/decks", icon: Layers3, label: "Decks" },
           { to: "/app/library", icon: Library, label: "Library" },
           { to: "/app/profile", icon: User, label: "Me" },
         ]}

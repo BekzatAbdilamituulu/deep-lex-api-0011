@@ -18,9 +18,7 @@ export const API_PAGE_LIMIT = 200;
  * @property {string} [back]
  * @property {string|null} [example_sentence]
  * @property {string|null} [content_kind]
- * @property {string|null} [source_sentence]
- * @property {string|null} [source_page]
- * @property {string|null} [context_note]
+ * @property {string|null} [context_sentence]
  */
 
 export const AuthApi = {
@@ -118,16 +116,4 @@ export const LibraryApi = {
   importCard: (cardId) => api.post(`/api/v1/library/cards/${cardId}/import`, {}),
   importSelected: (deckId, card_ids) =>
     api.post(`/api/v1/library/decks/${deckId}/import-selected`, { card_ids }),
-};
-
-export const ReadingSourcesApi = {
-  list: (params = {}) => api.get("/api/v1/reading-sources", { params }),
-  create: (payload) => api.post("/api/v1/reading-sources", payload),
-  get: (sourceId) => api.get(`/api/v1/reading-sources/${sourceId}`),
-  update: (sourceId, payload) => api.patch(`/api/v1/reading-sources/${sourceId}`, payload),
-  delete: (sourceId) => api.delete(`/api/v1/reading-sources/${sourceId}`),
-  getDetail: (sourceId, limit = 50, offset = 0) =>
-    api.get(`/api/v1/reading-sources/${sourceId}/detail`, { params: { limit, offset } }),
-  listCards: (sourceId, limit = 50, offset = 0) =>
-    api.get(`/api/v1/reading-sources/${sourceId}/cards`, { params: { limit, offset } }),
 };

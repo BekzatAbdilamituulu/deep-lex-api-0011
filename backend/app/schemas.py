@@ -31,13 +31,7 @@ class CardBase(BaseModel):
     back: str
     example_sentence: Optional[str] = None
     content_kind: Optional[ContentKind] = None
-    reading_source_id: Optional[int] = None
-    source_title: Optional[str] = None
-    source_author: Optional[str] = None
-    source_kind: Optional[str] = None
-    source_reference: Optional[str] = None
-    source_sentence: Optional[str] = None
-    source_page: Optional[str] = None
+    context_sentence: Optional[str] = None
     context_note: Optional[str] = None
 
 
@@ -50,62 +44,14 @@ class CardUpdate(BaseModel):
     back: Optional[str] = None
     example_sentence: Optional[str] = None
     content_kind: Optional[ContentKind] = None
-    reading_source_id: Optional[int] = None
-    source_title: Optional[str] = None
-    source_author: Optional[str] = None
-    source_kind: Optional[str] = None
-    source_reference: Optional[str] = None
-    source_sentence: Optional[str] = None
-    source_page: Optional[str] = None
+    context_sentence: Optional[str] = None
     context_note: Optional[str] = None
-
-
-class ReadingSourceBase(BaseModel):
-    title: str
-    author: Optional[str] = None
-    kind: Optional[str] = None
-    reference: Optional[str] = None
-
-
-class ReadingSourceCreate(ReadingSourceBase):
-    pair_id: int
-
-
-class ReadingSourceUpdate(BaseModel):
-    title: Optional[str] = None
-    author: Optional[str] = None
-    kind: Optional[str] = None
-    reference: Optional[str] = None
-
-
-class ReadingSourceOut(ReadingSourceBase):
-    id: int
-    user_id: int
-    pair_id: int
-    created_at: datetime
-    updated_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class ReadingSourceOutWithStats(ReadingSourceOut):
-    total_cards: int = 0
-    due_cards: int = 0
-    added_today: int = 0
-    last_added_at: Optional[datetime] = None
-
-
-class SourceDetailOut(BaseModel):
-    source: ReadingSourceOutWithStats
-    cards: List["CardOut"]
-    meta: "PageMeta"
 
 
 class CardOut(CardBase):
     id: int
     deck_id: int
     created_at: datetime
-    reading_source: Optional[ReadingSourceOut] = None
     memory_strength: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -118,13 +64,7 @@ class InboxWordIn(BaseModel):
     front: str = Field(min_length=1, max_length=200)
     back: Optional[str] = Field(default=None, max_length=500)
     example_sentence: Optional[str] = Field(default=None, max_length=500)
-    reading_source_id: Optional[int] = Field(default=None, ge=1)
-    source_title: Optional[str] = Field(default=None, max_length=300)
-    source_author: Optional[str] = Field(default=None, max_length=200)
-    source_kind: Optional[str] = Field(default=None, max_length=50)
-    source_reference: Optional[str] = Field(default=None, max_length=1000)
-    source_sentence: Optional[str] = Field(default=None, max_length=1000)
-    source_page: Optional[str] = Field(default=None, max_length=100)
+    context_sentence: Optional[str] = Field(default=None, max_length=1000)
     context_note: Optional[str] = Field(default=None, max_length=1000)
 
     # optional: allow client to define languages for Inbox creation
@@ -363,13 +303,27 @@ class StudyAnswerIn(BaseModel):
 
 class StudyQueueItemOut(BaseModel):
     type: str  # "review" | "new"
-    card: CardOut
+    card: "StudyCardOut"
+
+
+class StudyCardOut(BaseModel):
+    id: int
+    deck_id: int
+    front: str
+    back: str
+    example_sentence: Optional[str] = None
+    content_kind: Optional[ContentKind] = None
+    context_sentence: Optional[str] = None
+    context_note: Optional[str] = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class StudyBatchOut(BaseModel):
     deck_id: int
     count: int
-    cards: List[CardOut]
+    cards: List[StudyCardOut]
 
     # Optional: include current quotas/counters like /study/status
     meta: Optional["StudyStatusOut"] = None

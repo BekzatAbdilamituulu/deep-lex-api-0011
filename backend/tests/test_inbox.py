@@ -228,7 +228,7 @@ def test_inbox_requires_languages_if_no_default_pair(client):
     assert r.status_code == 422
 
 
-def test_inbox_quick_add_accepts_source_metadata(client):
+def test_inbox_quick_add_accepts_context_sentence(client):
     _, admin_token = create_user_and_token(client, "admin")
     _, token = create_user_and_token(client, "reader")
 
@@ -241,21 +241,12 @@ def test_inbox_quick_add_accepts_source_metadata(client):
         json={
             "front": "subtle",
             "back": "тонкий",
-            "source_title": "The Trial",
-            "source_author": "Franz Kafka",
-            "source_reference": "Chapter 1",
-            "source_sentence": "He noticed a subtle change in tone.",
-            "source_page": "p. 9",
+            "context_sentence": "He noticed a subtle change in tone.",
             "context_note": "First appearance in opening scene",
         },
         headers=auth_headers(token),
     )
     assert r.status_code == 201, r.text
     card = r.json()["card"]
-    assert card["source_title"] == "The Trial"
-    assert card["source_author"] == "Franz Kafka"
-    assert card["source_reference"] == "Chapter 1"
-    assert card["source_sentence"] == "He noticed a subtle change in tone."
-    assert card["source_page"] == "p. 9"
+    assert card["context_sentence"] == "He noticed a subtle change in tone."
     assert card["context_note"] == "First appearance in opening scene"
-    assert card["reading_source_id"] is not None

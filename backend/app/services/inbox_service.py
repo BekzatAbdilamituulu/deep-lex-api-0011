@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 from app import crud, models, schemas
 from app.services import deck_service
 from app.services.pair_service import resolve_pair_for_user
-from app.services.reading_source_service import resolve_or_create_reading_source
 
 # Matches: em dash, en dash, minus sign, hyphen variants, colon, semicolon, equals, tab, pipe
 SPLIT_RE = re.compile(r"\s*(?:—|–|−|-|‐|:|;|=|\t|\|)\s*", re.UNICODE)
@@ -75,26 +74,6 @@ def quick_add_word(
             source_language_id=payload.source_language_id,
             target_language_id=payload.target_language_id,
         )
-        pair = resolve_pair_for_user(
-            db,
-            user_id=user_id,
-            source_language_id=deck.source_language_id,
-            target_language_id=deck.target_language_id,
-            auto_create_by_langs=False,
-            use_default_if_missing=False,
-        )
-        reading_source = resolve_or_create_reading_source(
-            db,
-            user_id=user_id,
-            pair_id=pair.id,
-            reading_source_id=payload.reading_source_id,
-            source_title=payload.source_title,
-            source_author=payload.source_author,
-            source_kind=payload.source_kind,
-            source_reference=payload.source_reference,
-            create_if_missing=True,
-        )
-
         back = (payload.back or "").strip()
         example = payload.example_sentence.strip() if payload.example_sentence else None
 
@@ -105,13 +84,7 @@ def quick_add_word(
             front=payload.front.strip(),
             back=back,
             example_sentence=example,
-            reading_source_id=reading_source.id if reading_source else None,
-            source_title=payload.source_title,
-            source_author=payload.source_author,
-            source_kind=payload.source_kind,
-            source_reference=payload.source_reference,
-            source_sentence=payload.source_sentence,
-            source_page=payload.source_page,
+            context_sentence=payload.context_sentence,
             context_note=payload.context_note,
             auto_fill=True,
         )

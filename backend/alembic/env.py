@@ -2,7 +2,7 @@ import os
 import sys
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import create_engine, pool
 
 from alembic import context
 
@@ -10,7 +10,10 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, BASE_DIR)
 
 import app.models  # noqa: F401, E402
-from app.database import DATABASE_URL, Base  # noqa: E402
+from app.config import settings  # noqa: E402
+from app.database import Base, engine_options  # noqa: E402
+
+DATABASE_URL = settings.resolved_database_url
 
 print("ALEMBIC USING:", DATABASE_URL)
 
@@ -39,11 +42,11 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section) or {},
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    options = engine_options(DATABASE_URL)
+    if "pool_pre_ping" not in options:
+        options["poolclass"] = pool.NullPool
+
+    connectable = create_engine(DATABASE_URL, **options)
 
     with connectable.connect() as connection:
         context.configure(

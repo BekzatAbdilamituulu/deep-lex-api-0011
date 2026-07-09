@@ -65,11 +65,11 @@ export default function OnboardingPage() {
 
       const source = languages.find((language) => Number(language.id) === Number(learningId));
       const target = languages.find((language) => Number(language.id) === Number(translationId));
-      const sourceLabel = (source?.code || source?.name || "source").toLowerCase();
+      const sourceLabel = (source?.code || source?.name || "learning").toLowerCase();
       const targetLabel = (target?.code || target?.name || "target").toLowerCase();
 
       await DecksApi.create({
-        name: `My source (${sourceLabel}→${targetLabel})`,
+        name: `My deck (${sourceLabel}→${targetLabel})`,
         source_language_id: learningId,
         target_language_id: translationId,
         deck_type: "users",
@@ -108,7 +108,7 @@ export default function OnboardingPage() {
       <div>
         <h1 className="text-3xl font-semibold tracking-tighter">Set up your first pair</h1>
         <p className="mt-2 text-zinc-600">
-          Tell us which language you're learning and your native language. We'll create your first source deck.
+          Tell us which language you're learning and your native language. We'll create your first deck.
         </p>
       </div>
 

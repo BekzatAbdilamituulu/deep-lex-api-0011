@@ -154,11 +154,7 @@ def test_library_import_preserves_source_metadata(client):
         json={
             "front": "opaque",
             "back": "непрозрачный",
-            "source_title": "The Stranger",
-            "source_author": "Albert Camus",
-            "source_reference": "Part 2",
-            "source_sentence": "His answer was opaque to everyone.",
-            "source_page": "p. 41",
+            "context_sentence": "His answer was opaque to everyone.",
             "context_note": "Narrator description",
         },
         headers=auth_headers(admin_token),
@@ -176,13 +172,8 @@ def test_library_import_preserves_source_metadata(client):
     body = import_resp.json()
     assert body["imported"] is True
     card = body["card"]
-    assert card["source_title"] == "The Stranger"
-    assert card["source_author"] == "Albert Camus"
-    assert card["source_reference"] == "Part 2"
-    assert card["source_sentence"] == "His answer was opaque to everyone."
-    assert card["source_page"] == "p. 41"
+    assert card["context_sentence"] == "His answer was opaque to everyone."
     assert card["context_note"] == "Narrator description"
-    assert card["reading_source_id"] is not None
 
 def test_user_can_import_selected_library_cards(client):
     _, admin_token = create_user_and_token(client, "admin")
@@ -308,46 +299,3 @@ def test_user_sees_only_library_decks_for_default_pair(client):
 
     assert "EN-RU Library" in names
     assert "EN-ES Library" not in names
-
-
-def test_library_import_dry_run_does_not_persist_reading_sources(client):
-    _, admin_token = create_user_and_token(client, "admin")
-    _, user_token = create_user_and_token(client, "dryrun_reader")
-
-    en_id = admin_create_language(client, admin_token, "English", "en")
-    ru_id = admin_create_language(client, admin_token, "Russian", "ru")
-    set_default_languages(client, user_token, en_id, ru_id)
-
-    library_deck = create_library_deck(client, admin_token, "Source Import", en_id, ru_id)
-    card = client.post(
-        f"/api/v1/decks/{library_deck['id']}/cards",
-        json={
-            "front": "somber",
-            "back": "мрачный",
-            "source_title": "Crime and Punishment",
-            "source_author": "Dostoevsky",
-        },
-        headers=auth_headers(admin_token),
-    ).json()
-
-    before_sources = client.get(
-        "/api/v1/reading-sources?include_stats=true",
-        headers=auth_headers(user_token),
-    )
-    assert before_sources.status_code == 200, before_sources.text
-    before_total = before_sources.json()["meta"]["total"]
-
-    dry = client.post(
-        f"/api/v1/library/decks/{library_deck['id']}/import-selected",
-        json={"card_ids": [card["id"]], "dry_run": True},
-        headers=auth_headers(user_token),
-    )
-    assert dry.status_code == 200, dry.text
-    assert dry.json()["preview_count"] == 1
-
-    after_sources = client.get(
-        "/api/v1/reading-sources?include_stats=true",
-        headers=auth_headers(user_token),
-    )
-    assert after_sources.status_code == 200, after_sources.text
-    assert after_sources.json()["meta"]["total"] == before_total

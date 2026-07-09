@@ -60,7 +60,6 @@ def next_study_for_main_deck(
     new_ratio: float,
     max_new_per_day: int,
     max_reviews_per_day: int,
-    reading_source_id: int | None = None,
 ):
     require_main_deck(
         db,
@@ -75,7 +74,6 @@ def next_study_for_main_deck(
         new_ratio=new_ratio,
         max_new_per_day=max_new_per_day,
         max_reviews_per_day=max_reviews_per_day,
-        reading_source_id=reading_source_id,
     )
 
 
@@ -86,7 +84,6 @@ def status_for_main_deck(
     deck_id: int,
     max_new_per_day: int,
     max_reviews_per_day: int,
-    reading_source_id: int | None = None,
 ):
     require_main_deck(
         db,
@@ -99,5 +96,4 @@ def status_for_main_deck(
         deck_id=deck_id,
         max_new_per_day=max_new_per_day,
         max_reviews_per_day=max_reviews_per_day,
-        reading_source_id=reading_source_id,
     )

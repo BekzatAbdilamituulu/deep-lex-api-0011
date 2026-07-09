@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { DecksApi, ReadingSourcesApi, StudyApi } from "../api/endpoints";
+import { DecksApi, StudyApi } from "../api/endpoints";
 import { useActivePair } from "../context/ActivePairContext";
-import { memoryStrengthFromCard } from "../utils/memoryStrength";
 import Button from "../components/Button";
 import ProgressBar from "../components/ProgressBar";
 
@@ -14,7 +13,6 @@ function extractError(e) {
 export default function StudyPage() {
   const { deckId } = useParams();
   const id = Number(deckId);
-  const urlSourceId = Number(new URLSearchParams(window.location.search).get("sourceId") || 0);
 
   const { activePair } = useActivePair();
 
@@ -74,8 +72,7 @@ export default function StudyPage() {
     setRevealed(false);
 
     try {
-      const params = urlSourceId > 0 ? { reading_source_id: urlSourceId } : {};
-      const res = await StudyApi.next(id, params);
+      const res = await StudyApi.next(id);
       setBatch(res.data || res); // support both
     } catch (e) {
       setError(extractError(e));
@@ -133,7 +130,7 @@ export default function StudyPage() {
     }
     if (activePair) init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, urlSourceId, activePair?.id]);
+  }, [id, activePair?.id]);
 
   const card = current;
 
@@ -160,9 +157,9 @@ export default function StudyPage() {
           <div className="text-xs uppercase tracking-[2px] text-emerald-600 mb-2">Answer</div>
           <div className="text-4xl font-semibold tracking-tight">{front}</div>
           <div className="mt-3 text-3xl text-zinc-800">{back}</div>
-          {card?.source_sentence && (
+          {card?.context_sentence && (
             <div className="mt-4 max-w-[85%] text-sm text-zinc-500 italic line-clamp-3">
-              “{card.source_sentence}”
+              “{card.context_sentence}”
             </div>
           )}
         </div>
@@ -175,7 +172,7 @@ export default function StudyPage() {
       {/* Header */}
       <div className="mb-5 flex items-center justify-between">
         <div>
-          <div className="text-sm text-zinc-500">Reading Review</div>
+          <div className="text-sm text-zinc-500">Review</div>
           <div className="font-semibold text-xl">{deckName || "Session"}</div>
         </div>
         <div className="text-right text-xs text-zinc-500">

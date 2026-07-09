@@ -50,7 +50,7 @@ function buildImportToast(imported, skipped) {
   if (skipped > 0) {
     return `Added ${imported} ${imported === 1 ? "word" : "words"} • ${skipped} already existed`;
   }
-  return "Added to your reading review";
+  return "Added to your review";
 }
 
 export default function LibraryDeckDetailPage() {
@@ -93,7 +93,7 @@ export default function LibraryDeckDetailPage() {
 
     try {
       if (!(id > 0)) {
-        setError("Invalid reading collection id.");
+        setError("Invalid collection id.");
         setDeck(null);
         return;
       }
@@ -107,7 +107,7 @@ export default function LibraryDeckDetailPage() {
       if (found) {
         setDeck(found);
       } else if (!location.state?.deck) {
-        setDeck({ id, name: `Reading collection #${id}` });
+        setDeck({ id, name: `Vocabulary collection #${id}` });
       }
     } catch (e) {
       setError(extractError(e));
@@ -209,7 +209,7 @@ export default function LibraryDeckDetailPage() {
       <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
         <div className="relative aspect-[5/2] w-full bg-stone-100">
           {deck?.cover_image_url ? (
-            <img src={deck.cover_image_url} alt={deck?.name || "Library source"} className="h-full w-full object-cover" />
+            <img src={deck.cover_image_url} alt={deck?.name || "Library collection"} className="h-full w-full object-cover" />
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-gradient-to-r from-amber-100 via-stone-100 to-orange-100 text-stone-600">
               <span className="text-sm font-semibold">Curated library set</span>
@@ -227,7 +227,7 @@ export default function LibraryDeckDetailPage() {
 
         <div className="space-y-2 p-4">
           <h1 className="text-2xl font-bold text-stone-900">
-            {loadingDeck ? "Loading reading collection..." : deck?.name || `Reading collection #${id}`}
+            {loadingDeck ? "Loading collection..." : deck?.name || `Vocabulary collection #${id}`}
           </h1>
           <div className="flex flex-wrap items-center gap-3 text-sm text-stone-600">
             <span>{deck?.cards_count ?? "-"} words</span>
@@ -264,7 +264,7 @@ export default function LibraryDeckDetailPage() {
             {importingSelected ? "Importing..." : `Import selected (${selectedIds.length})`}
           </Button>
         </div>
-        <p className="text-xs text-stone-500">Select one or many entries, then import them into your reading review.</p>
+        <p className="text-xs text-stone-500">Select one or many entries, then add them to your review.</p>
       </Card>
 
       {cardsError ? (
@@ -275,7 +275,7 @@ export default function LibraryDeckDetailPage() {
 
       {!loadingCards && cards.length === 0 ? (
         <Card className="border-stone-200 bg-white/95">
-          <p className="text-sm text-stone-600">No entries in this reading collection yet.</p>
+          <p className="text-sm text-stone-600">No entries in this collection yet.</p>
         </Card>
       ) : null}
 
@@ -323,7 +323,7 @@ export default function LibraryDeckDetailPage() {
 
                 {card.example_sentence ? (
                   <div>
-                    <p className="text-xs text-stone-500">Source sentence</p>
+                    <p className="text-xs text-stone-500">Context sentence</p>
                     <p className="text-stone-700">{card.example_sentence}</p>
                   </div>
                 ) : null}

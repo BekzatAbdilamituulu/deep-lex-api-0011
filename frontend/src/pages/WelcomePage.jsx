@@ -42,7 +42,7 @@ export default function WelcomePage() {
             Remember the words<br />you discover while reading.
           </h1>
           <p className="mx-auto mt-4 max-w-md text-lg text-white/80">
-            A calm, focused vocabulary companion for serious language learners.
+            A calm vocabulary memory companion for serious readers.
           </p>
 
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -76,9 +76,9 @@ export default function WelcomePage() {
       <div className="mx-auto max-w-3xl px-6 py-12">
         <div className="grid gap-6 sm:grid-cols-3">
           {[
-            { title: "Capture in context", desc: "Save words with the exact sentence from your book." },
-            { title: "Review at your pace", desc: "Simple spaced repetition focused on what you read." },
-            { title: "Organize by source", desc: "Build your personal vocabulary library by book or article." },
+            { title: "Save from reading", desc: "Save a word from your reading as soon as it stands out." },
+            { title: "Remember the moment", desc: "Add the sentence if you want to remember why it mattered." },
+            { title: "Review calmly", desc: "Review words collected from your reading with SRS." },
           ].map((f, i) => (
             <div key={i} className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
               <div className="font-semibold text-lg">{f.title}</div>
@@ -88,7 +88,7 @@ export default function WelcomePage() {
         </div>
 
         <div className="mt-10 text-center text-sm text-zinc-500">
-          Built for readers. No distractions. Just better recall.
+          No streaks. No noise. Just deep vocabulary memory.
         </div>
       </div>
     </div>

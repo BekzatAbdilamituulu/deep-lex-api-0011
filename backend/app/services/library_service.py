@@ -5,7 +5,6 @@ from sqlalchemy.orm import Session
 from app import crud, models
 from app.services import deck_service
 from app.services.pair_service import get_or_create_pair_from_languages
-from app.services.reading_source_service import resolve_or_create_reading_source
 
 
 def list_library_decks_for_user(
@@ -32,14 +31,12 @@ def list_library_cards_for_deck(
     deck_id: int,
     limit: int,
     offset: int,
-    reading_source_id: int | None = None,
 ):
     return crud.list_library_deck_cards(
         db,
         deck_id,
         limit=limit,
         offset=offset,
-        reading_source_id=reading_source_id,
         user_id=user_id,
     )
 
@@ -131,25 +128,6 @@ def import_library_card_to_main_deck(
                 "card": None,
             }
 
-        source_title = card.source_title or (card.reading_source.title if card.reading_source else None)
-        source_author = card.source_author or (
-            card.reading_source.author if card.reading_source else None
-        )
-        source_kind = card.reading_source.kind if card.reading_source else None
-        source_reference = card.source_reference or (
-            card.reading_source.reference if card.reading_source else None
-        )
-        reading_source = resolve_or_create_reading_source(
-            db,
-            user_id=user_id,
-            pair_id=pair.id,
-            source_title=source_title,
-            source_author=source_author,
-            source_kind=source_kind,
-            source_reference=source_reference,
-            create_if_missing=True,
-        )
-
         new_card = crud.create_card(
             db,
             deck_id=target_deck.id,
@@ -158,13 +136,7 @@ def import_library_card_to_main_deck(
             back=card.back or "",
             example_sentence=card.example_sentence,
             content_kind=card.content_kind,
-            reading_source_id=reading_source.id if reading_source else None,
-            source_title=source_title,
-            source_author=source_author,
-            source_kind=source_kind,
-            source_reference=source_reference,
-            source_sentence=card.source_sentence,
-            source_page=card.source_page,
+            context_sentence=card.context_sentence,
             context_note=card.context_note,
             auto_fill=False,
         )
@@ -261,26 +233,6 @@ def import_selected_library_cards_to_main_deck(
 
             try:
                 with db.begin_nested():
-                    source_title = card.source_title or (
-                        card.reading_source.title if card.reading_source else None
-                    )
-                    source_author = card.source_author or (
-                        card.reading_source.author if card.reading_source else None
-                    )
-                    source_kind = card.reading_source.kind if card.reading_source else None
-                    source_reference = card.source_reference or (
-                        card.reading_source.reference if card.reading_source else None
-                    )
-                    reading_source = resolve_or_create_reading_source(
-                        db,
-                        user_id=user_id,
-                        pair_id=pair.id,
-                        source_title=source_title,
-                        source_author=source_author,
-                        source_kind=source_kind,
-                        source_reference=source_reference,
-                        create_if_missing=True,
-                    )
                     new_card = crud.create_card(
                         db,
                         deck_id=target_deck.id,
@@ -289,13 +241,7 @@ def import_selected_library_cards_to_main_deck(
                         back=card.back or "",
                         example_sentence=card.example_sentence,
                         content_kind=card.content_kind,
-                        reading_source_id=reading_source.id if reading_source else None,
-                        source_title=source_title,
-                        source_author=source_author,
-                        source_kind=source_kind,
-                        source_reference=source_reference,
-                        source_sentence=card.source_sentence,
-                        source_page=card.source_page,
+                        context_sentence=card.context_sentence,
                         context_note=card.context_note,
                         auto_fill=False,
                     )

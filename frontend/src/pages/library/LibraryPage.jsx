@@ -49,14 +49,14 @@ export default function LibraryPage() {
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-stone-200 bg-gradient-to-b from-amber-50 to-stone-100 p-4 shadow-sm">
-        <h1 className="text-2xl font-bold text-stone-900">Library sources</h1>
-        <p className="mt-1 text-sm text-stone-600">Browse curated reading collections and import words into your own sources.</p>
+        <h1 className="text-2xl font-bold text-stone-900">Library</h1>
+        <p className="mt-1 text-sm text-stone-600">Browse curated vocabulary collections and add useful words to your review.</p>
 
         <div className="mt-3">
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search reading collections by title"
+            placeholder="Search collections by title"
             className="border-stone-300 bg-white/95"
           />
         </div>
@@ -66,12 +66,12 @@ export default function LibraryPage() {
         <pre className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">{error}</pre>
       ) : null}
 
-      {loading ? <p className="text-sm text-stone-500">Loading library sources...</p> : null}
+      {loading ? <p className="text-sm text-stone-500">Loading library...</p> : null}
 
       {!loading && filteredDecks.length === 0 ? (
         <Card className="border-stone-200 bg-white/90">
           <p className="text-sm text-stone-600">
-            {search.trim() ? "No reading collections found for your search." : "No reading collections available right now."}
+            {search.trim() ? "No vocabulary collections found for your search." : "No vocabulary collections available right now."}
           </p>
         </Card>
       ) : null}

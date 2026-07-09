@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
-  AutoApi, CardsApi, DecksApi, LanguagesApi, ProgressApi, ReadingSourcesApi 
+  AutoApi, CardsApi, DecksApi, LanguagesApi, ProgressApi
 } from "../api/endpoints";
 import { useActivePair } from "../context/ActivePairContext";
 import Button from "../components/Button";
@@ -31,14 +31,12 @@ export default function DashboardPage() {
   const [error, setError] = useState("");
   const [langs, setLangs] = useState([]);
   const [mainDeckCards, setMainDeckCards] = useState([]);
-  const [readingSources, setReadingSources] = useState([]);
-  const [currentSourceId, setCurrentSourceId] = useState(null);
 
   // Quick add
   const [addOpen, setAddOpen] = useState(false);
   const [learningText, setLearningText] = useState("");
   const [nativeText, setNativeText] = useState("");
-  const [sourceSentence, setSourceSentence] = useState("");
+  const [contextSentence, setContextSentence] = useState("");
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewMsg, setPreviewMsg] = useState("");
   const [dirtyNative, setDirtyNative] = useState(false);
@@ -60,16 +58,13 @@ export default function DashboardPage() {
     setError("");
 
     try {
-      const [langsRes, decksRes, sourcesRes] = await Promise.all([
+      const [langsRes, decksRes] = await Promise.all([
         LanguagesApi.list(),
         DecksApi.list(200, 0, { pair_id: activePair.id }),
-        ReadingSourcesApi.list({ pair_id: activePair.id, include_stats: true, limit: 50, offset: 0 }),
       ]);
 
       setLangs(langsRes.data ?? []);
       const decks = decksRes.data?.items ?? [];
-      const sources = sourcesRes.data?.items ?? [];
-      setReadingSources(sources);
 
       const mainDecks = decks.filter(isMainDeck);
       const summaries = await Promise.all(
@@ -131,7 +126,6 @@ export default function DashboardPage() {
 
   const primaryDeck = mainDeckCards[0] ?? null;
   const summary = primaryDeck?.summary || {};
-  const totalCards = summary.total_cards ?? 0;
   const totalNew = summary.total_new ?? 0;
   const totalLearning = summary.total_learning ?? 0;
   const totalMastered = summary.total_mastered ?? 0;
@@ -142,14 +136,13 @@ export default function DashboardPage() {
   // Demo daily goal
   const dailyGoal = 30;
   const todayLearned = Math.min(22, totalNew + 3); // demo
-  const goalPct = Math.round((todayLearned / dailyGoal) * 100);
 
   const openQuickAdd = () => {
     if (!activePair) {
       setError("Select a learning pair first");
       return;
     }
-    setAddMsg(""); setPreviewMsg(""); setLearningText(""); setNativeText(""); setSourceSentence("");
+    setAddMsg(""); setPreviewMsg(""); setLearningText(""); setNativeText(""); setContextSentence("");
     setDirtyNative(false);
     setAddOpen(true);
   };
@@ -161,12 +154,12 @@ export default function DashboardPage() {
       await CardsApi.create(primaryDeck.deck.id, {
         front: learningText.trim(),
         back: nativeText.trim() || null,
-        example_sentence: sourceSentence.trim() || null,
+        context_sentence: contextSentence.trim() || null,
       });
       setAddMsg("Saved!");
       setTimeout(() => {
         setAddOpen(false);
-        setLearningText(""); setNativeText(""); setSourceSentence("");
+        setLearningText(""); setNativeText(""); setContextSentence("");
         load();
       }, 650);
     } catch (e) {
@@ -188,13 +181,13 @@ export default function DashboardPage() {
             <h1 className="text-4xl font-semibold tracking-tighter">
               {learningLang?.name || "Learning"} → {nativeLang?.name || "Your language"}
             </h1>
-            <p className="mt-2 text-white/70">Keep the streak alive. Small wins compound.</p>
+            <p className="mt-2 text-white/70">Save a word from your reading. Review it when memory needs it.</p>
           </div>
 
-          {/* Streak + Goal */}
+          {/* Daily review goal */}
           <div className="flex flex-col gap-3 md:items-end">
             <div className="inline-flex items-center gap-2 rounded-2xl bg-white/10 px-4 py-1 text-sm backdrop-blur">
-              🔥 <span className="font-semibold">7 day streak</span>
+              <span className="font-semibold">Quiet daily review</span>
             </div>
             <div className="w-full md:w-72">
               <div className="mb-1 flex justify-between text-xs text-white/70">
@@ -228,7 +221,7 @@ export default function DashboardPage() {
         </Card>
         <Card className="text-center py-5 cursor-pointer" onClick={() => primaryDeck && nav(`/app/study/${primaryDeck.deck.id}`)}>
           <div className="text-3xl font-semibold">Start</div>
-          <div className="text-sm text-zinc-500 mt-1">Reading Review →</div>
+          <div className="text-sm text-zinc-500 mt-1">Review words</div>
         </Card>
       </div>
 
@@ -239,7 +232,7 @@ export default function DashboardPage() {
             <div className="font-semibold">Recent activity</div>
             <div className="text-xs text-zinc-500">Words reviewed (last 7 days)</div>
           </div>
-          <Button size="sm" variant="secondary" onClick={openQuickAdd}>+ Quick Add</Button>
+          <Button size="sm" variant="secondary" onClick={openQuickAdd}>Save a word</Button>
         </div>
         <div className="h-24 -mx-2">
           <ResponsiveContainer width="100%" height="100%">
@@ -261,28 +254,28 @@ export default function DashboardPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setAddOpen(false)}>
           <div className="w-full max-w-md rounded-3xl bg-white p-7 shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="mb-5 flex items-center justify-between">
-              <h3 className="text-xl font-semibold">Quick Add Word</h3>
+              <h3 className="text-xl font-semibold">Save a word from your reading</h3>
               <button onClick={() => setAddOpen(false)} className="text-2xl leading-none text-zinc-400">×</button>
             </div>
 
             <div className="space-y-4">
               <input
                 className="w-full rounded-2xl border px-5 py-3 text-lg outline-none focus:ring-2 focus:ring-zinc-900"
-                placeholder="Word / front (e.g. ephemeral)"
+                placeholder="Word"
                 value={learningText}
                 onChange={(e) => { setLearningText(e.target.value); setDirtyNative(false); }}
               />
               <input
                 className="w-full rounded-2xl border px-5 py-3 text-lg outline-none focus:ring-2 focus:ring-zinc-900"
-                placeholder="Meaning / back"
+                placeholder="Translation"
                 value={nativeText}
                 onChange={(e) => { setNativeText(e.target.value); setDirtyNative(true); }}
               />
               <input
                 className="w-full rounded-2xl border px-5 py-3 outline-none focus:ring-2 focus:ring-zinc-900"
-                placeholder="Example sentence (optional)"
-                value={sourceSentence}
-                onChange={(e) => setSourceSentence(e.target.value)}
+                placeholder="Add the sentence if you want to remember the moment"
+                value={contextSentence}
+                onChange={(e) => setContextSentence(e.target.value)}
               />
 
               {previewLoading && <div className="text-xs text-zinc-500">Previewing translation...</div>}
@@ -290,34 +283,12 @@ export default function DashboardPage() {
 
               <div className="flex gap-3 pt-2">
                 <Button onClick={saveQuickWord} disabled={adding || !learningText.trim()} className="flex-1">
-                  {adding ? "Saving..." : "Save Word"}
+                  {adding ? "Saving..." : "Save word"}
                 </Button>
                 <Button variant="secondary" onClick={() => setAddOpen(false)} className="flex-1">Cancel</Button>
               </div>
               {addMsg && <div className="text-center text-sm text-emerald-600">{addMsg}</div>}
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Sources quick access */}
-      {readingSources.length > 0 && (
-        <div>
-          <div className="mb-3 px-1 text-sm font-medium text-zinc-600">Your reading sources</div>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            {readingSources.slice(0, 4).map((src) => (
-              <Card 
-                key={src.id} 
-                className="cursor-pointer hover:border-zinc-300 active:scale-[0.985] transition"
-                onClick={() => primaryDeck && nav(`/app/study/${primaryDeck.deck.id}?sourceId=${src.id}`)}
-              >
-                <div className="font-semibold">{src.title}</div>
-                <div className="text-xs text-zinc-500 mt-0.5">{src.author || "—"}</div>
-                <div className="mt-3 text-sm">
-                  {src.due_cards || 0} due • {src.total_cards || 0} words
-                </div>
-              </Card>
-            ))}
           </div>
         </div>
       )}

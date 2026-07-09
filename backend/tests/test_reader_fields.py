@@ -91,11 +91,7 @@ def test_create_card_accepts_reader_fields(client):
             "front": "serendipity",
             "back": "счастливая случайность",
             "content_kind": "word",
-            "source_title": "Anna Karenina",
-            "source_author": "Leo Tolstoy",
-            "source_reference": "Part 1, Chapter 3",
-            "source_sentence": "It was pure serendipity.",
-            "source_page": "p. 14",
+            "context_sentence": "It was pure serendipity.",
             "context_note": "Found in chapter 2.",
         },
         headers=auth_headers(token),
@@ -103,13 +99,8 @@ def test_create_card_accepts_reader_fields(client):
     assert r.status_code == 201, r.text
     body = r.json()
     assert body["content_kind"] == "word"
-    assert body["source_title"] == "Anna Karenina"
-    assert body["source_author"] == "Leo Tolstoy"
-    assert body["source_reference"] == "Part 1, Chapter 3"
-    assert body["source_sentence"] == "It was pure serendipity."
-    assert body["source_page"] == "p. 14"
+    assert body["context_sentence"] == "It was pure serendipity."
     assert body["context_note"] == "Found in chapter 2."
-    assert body["reading_source_id"] is not None
 
 
 def test_update_card_accepts_reader_fields(client):
@@ -144,11 +135,7 @@ def test_update_card_accepts_reader_fields(client):
         f"/api/v1/decks/{deck_id}/cards/{card_id}",
         json={
             "content_kind": "idea",
-            "source_title": "Collected Essays",
-            "source_author": "M. Proust",
-            "source_reference": "Essay II",
-            "source_sentence": "That paragraph gave me insight.",
-            "source_page": "12",
+            "context_sentence": "That paragraph gave me insight.",
             "context_note": "Key idea for this text.",
         },
         headers=auth_headers(token),
@@ -156,13 +143,8 @@ def test_update_card_accepts_reader_fields(client):
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["content_kind"] == "idea"
-    assert body["source_title"] == "Collected Essays"
-    assert body["source_author"] == "M. Proust"
-    assert body["source_reference"] == "Essay II"
-    assert body["source_sentence"] == "That paragraph gave me insight."
-    assert body["source_page"] == "12"
+    assert body["context_sentence"] == "That paragraph gave me insight."
     assert body["context_note"] == "Key idea for this text."
-    assert body["reading_source_id"] is not None
 
 
 def test_old_card_payload_without_source_metadata_still_works(client):
@@ -192,6 +174,3 @@ def test_old_card_payload_without_source_metadata_still_works(client):
     )
     assert r.status_code == 201, r.text
     body = r.json()
-    assert body["source_title"] is None
-    assert body["source_author"] is None
-    assert body["source_reference"] is None

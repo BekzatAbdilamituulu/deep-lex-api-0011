@@ -38,7 +38,6 @@ def next_study_for_deck(
     new_ratio: float = Query(0.3, ge=0.0, le=1.0),
     max_new_per_day: int = Query(10, ge=0, le=1000),
     max_reviews_per_day: int = Query(100, ge=0, le=5000),
-    reading_source_id: int | None = Query(default=None, ge=1),
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -51,7 +50,6 @@ def next_study_for_deck(
             new_ratio=new_ratio,
             max_new_per_day=max_new_per_day,
             max_reviews_per_day=max_reviews_per_day,
-            reading_source_id=reading_source_id,
         )
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -64,7 +62,6 @@ def study_status_for_deck(
     deck_id: int,
     max_new_per_day: int = Query(10, ge=0, le=1000),
     max_reviews_per_day: int = Query(100, ge=0, le=5000),
-    reading_source_id: int | None = Query(default=None, ge=1),
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -75,7 +72,6 @@ def study_status_for_deck(
             deck_id=deck_id,
             max_new_per_day=max_new_per_day,
             max_reviews_per_day=max_reviews_per_day,
-            reading_source_id=reading_source_id,
         )
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))

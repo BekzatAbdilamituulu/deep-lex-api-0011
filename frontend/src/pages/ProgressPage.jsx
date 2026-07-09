@@ -172,7 +172,7 @@ export default function ProgressPage() {
     { key: "summary", label: "Summary" },
     { key: "daily", label: "Daily" },
     { key: "monthly", label: "Monthly" },
-    { key: "streak", label: "Streak" },
+    { key: "streak", label: "Review rhythm" },
   ];
 
   return (
@@ -180,7 +180,7 @@ export default function ProgressPage() {
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tighter">Progress</h1>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">Your learning journey at a glance</p>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">Your vocabulary memory at a glance</p>
         </div>
         <Button onClick={load} disabled={loading} variant="secondary" size="sm">
           {loading ? "Loading..." : "Refresh"}
@@ -235,11 +235,11 @@ export default function ProgressPage() {
                   <div className="text-6xl font-semibold tracking-tighter mt-2 text-emerald-600 dark:text-emerald-400">{mastered}</div>
                 </Card>
                 <Card className="text-center">
-                  <div className="text-sm text-zinc-500">Current Streak</div>
-                  <div className="text-6xl font-semibold tracking-tighter mt-2">🔥 {currentStreak}</div>
+                  <div className="text-sm text-zinc-500">Review Rhythm</div>
+                  <div className="text-6xl font-semibold tracking-tighter mt-2">{currentStreak}</div>
                 </Card>
                 <Card className="text-center">
-                  <div className="text-sm text-zinc-500">Best Streak</div>
+                  <div className="text-sm text-zinc-500">Best Review Run</div>
                   <div className="text-6xl font-semibold tracking-tighter mt-2">{bestStreak}</div>
                 </Card>
               </div>
@@ -376,26 +376,26 @@ export default function ProgressPage() {
             </div>
           )}
 
-          {/* STREAK TAB */}
+          {/* REVIEW RHYTHM TAB */}
           {activeTab === "streak" && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Card className="text-center py-10">
-                  <div className="text-7xl mb-2">🔥</div>
+                  <div className="text-sm text-zinc-500 mb-2">Consecutive review days</div>
                   <div className="text-7xl font-semibold tracking-tighter">{currentStreak}</div>
-                  <div className="mt-1 text-lg text-emerald-600 dark:text-emerald-400 font-medium">Current Streak</div>
-                  <div className="text-sm text-zinc-500 mt-1">days in a row</div>
+                  <div className="mt-1 text-lg text-emerald-600 dark:text-emerald-400 font-medium">Review Rhythm</div>
+                  <div className="text-sm text-zinc-500 mt-1">review days in a row</div>
                 </Card>
 
                 <Card className="text-center py-10">
                   <div className="text-6xl font-semibold tracking-tighter">{bestStreak}</div>
                   <div className="mt-3 text-lg text-zinc-600 dark:text-zinc-400 font-medium">Personal Best</div>
-                  <div className="text-sm text-zinc-500">Longest streak ever</div>
+                  <div className="text-sm text-zinc-500">Longest review run</div>
                 </Card>
               </div>
 
               <Card>
-                <div className="text-sm text-zinc-500">Keep the momentum going! Small daily reviews build long streaks.</div>
+                <div className="text-sm text-zinc-500">No streaks. No noise. Small daily reviews keep words available.</div>
               </Card>
             </div>
           )}

@@ -170,7 +170,6 @@ def list_cards(
     deck_id: int,
     limit: int = 50,
     offset: int = 0,
-    reading_source_id: int | None = None,
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
 ):
@@ -183,7 +182,6 @@ def list_cards(
             user.id,
             limit=limit,
             offset=offset,
-            reading_source_id=reading_source_id,
         )
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
@@ -220,13 +218,7 @@ def create_card(
             back=payload.back,
             example_sentence=payload.example_sentence,
             content_kind=payload.content_kind,
-            reading_source_id=payload.reading_source_id,
-            source_title=payload.source_title,
-            source_author=payload.source_author,
-            source_kind=payload.source_kind,
-            source_reference=payload.source_reference,
-            source_sentence=payload.source_sentence,
-            source_page=payload.source_page,
+            context_sentence=payload.context_sentence,
             context_note=payload.context_note,
         )
         db.commit()
@@ -265,13 +257,7 @@ def update_card(
             back=payload.back,
             example_sentence=payload.example_sentence,
             content_kind=payload.content_kind,
-            reading_source_id=payload.reading_source_id,
-            source_title=payload.source_title,
-            source_author=payload.source_author,
-            source_kind=payload.source_kind,
-            source_reference=payload.source_reference,
-            source_sentence=payload.source_sentence,
-            source_page=payload.source_page,
+            context_sentence=payload.context_sentence,
             context_note=payload.context_note,
         )
         db.commit()
